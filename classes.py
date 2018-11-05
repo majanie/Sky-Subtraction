@@ -73,7 +73,7 @@ class allcubes:
         
         """ get mean sky for each shot and exposure """
         
-        self.commonskies = np.zeros(shape = self.sky_models.shape)
+        self.commonskies = np.ones(shape = self.sky_models.shape) # try ones?
         for shot in self.shots:
             for exp in ['exp01','exp02','exp03']:
                 thisnightandexp = np.where((self.allshots==shot)&(self.exposures==exp)&(self.niceifus))
@@ -84,25 +84,26 @@ class allcubes:
         
         """ get relative throughput of each amplifier """
         
-        self.rel_throughput = np.zeros(shape = self.sky_models.shape)
+        self.rel_throughput = []#np.zeros(shape = self.sky_models.shape)
         for i in range(self.sky_models.shape[0]):
-            self.rel_throughput[i] = self.sky_models[i] / self.commonskies[i]
+            self.rel_throughput.append(self.sky_models[i] / self.commonskies[i])
+        self.rel_throughput = np.array(self.rel_throughput)
         
     def get_xrel_throughput(self):
         
         """ get mean relative throughput without using flagged ifus and the shot itself """
         
-        self.xrel_throughput = np.zeros(shape = self.rel_throughput.shape)
+        self.xrel_throughput = []#np.zeros(shape = self.rel_throughput.shape) # try ones instead of zeros?
         for i in range(self.rel_throughput.shape[0]):
             shot, exp, ifu, amp = self.allshots[i], self.exposures[i], self.ifuslots[i], self.amps[i]
-            here = (self.allshots!=shot)&(self.exposures==exp)&(self.ifuslots==ifu)&(self.amps==amp)&(self.niceifus) 
-            
-            if sum(here) == 0:
+            here = np.where((self.allshots!=shot)&(self.exposures==exp)&(self.ifuslots==ifu)&(self.amps==amp)&(self.niceifus)) 
+            if len(self.exposures[here]) == 0:
                 print('No xrt could be computed for shot {} exp {} ifu {} amp {}.'.format(shot, exp, ifu, amp))
-                self.xrel_throughput[i] = self.rel_throughput[i]
+                self.xrel_throughput.append(self.rel_throughput[i])
             else:
                 xrelthrough = np.nanmean(self.rel_throughput[here], axis = 0)
-                self.xrel_throughput[i] = xrelthrough
+                self.xrel_throughput.append(xrelthrough)
+        self.xrel_throughput = np.array(self.xrel_throughput)
        
     def get_xskyspectra(self):
         
@@ -125,11 +126,12 @@ class allcubes:
         
         """ scale the xsky spectrum with a polynomial fit to the residuals """
         
-        self.res = np.zeros(shape = self.commonskies.shape)
+        self.res = np.ones(shape = self.commonskies.shape)
         ww = self.ww # it should do to fit to np.arange(0,re.shape[0],1)...?
-        for i in range(self.sky_spectra.shape[0]):
+        for i in range(self.xsky.shape[0]):
            
             re = (self.sky_spectra[i,45,:] - self.xsky[i,45,:])/ self.xsky[i,45,:]
+            print("re.shape: ",re.shape)
             #print('re[np.isfinite] ',re[np.isfinite(re)])
             sigma = np.nanstd(re[250:])
             sigma2 = np.nanstd(re[:250])
@@ -303,7 +305,7 @@ def find_indices(shots):
       
         
 def main():
-    shots = ['20180124v010','20180124v011']
+    shots = ['20180113v012','20180113v013','20180113v014']#['20180124v010','20180124v011']
     flagged_ifus =  {'20180110v021':['036','042','043','074','086','095','104'],
                     '20180120v008':['036','042','043','074','086','095','104'],
                     '20180123v009':['036','042','043','074','086','095','104'],
@@ -313,7 +315,5 @@ def main():
         
     cubes = allcubes(shots, ff,  allshots, exposures, ifuslots, amps, overwrite=False, flagged_ifus=flagged_ifus)
     cubes.process()
-        
+    
 main()
-        
-        
