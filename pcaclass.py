@@ -15,7 +15,7 @@ class fiber:
         self.mean = self.fiber.mean(axis=0) # mean sky spectrum
         self.std = self.fiber.std(axis=0)
         self.fiber = (self.fiber - self.mean)/self.std # sklearn pca does this...
-        self.fiber = np.array(self.fiber, dtype=np.float64)
+        self.fiber = np.array(self.fiber, dtype=np.float64) # to prevent overflow
 
     def finish(self):
         self.fiber = (self.fiber + self.mean)*self.std # add it again in the end
@@ -37,7 +37,7 @@ class fiber_pca:
             imp = [x[1] for x in imp] # we only want the eigenvectors
             self.imp = np.array(imp) # n x 1032
             scprod = self.imp.dot((fiber).T) # projection matrix (scalar product) of the pc's on the input spectra
-            self.scprod = np.array([scprod.T[i] / np.linalg.norm(fiber[i])**2 for i in range(scprod.T.shape[0])]).T # normalize projection (only "/norm(f)" instead of ""^2)
+            self.scprod = np.array([scprod.T[i] / np.linalg.norm(fiber[i])**2 for i in range(scprod.T.shape[0])]).T # normalize projection
             self.fiber_pca = fiber.dot(self.imp.T) # input spectra in pc base
         except:
             print('A ValueError occurred in pca.')
@@ -184,11 +184,12 @@ def get_fibers1(shots, sigma, ifu, amp, compareifu, compareamp): # gets spectra 
 
     # only use shots with three exposures, i.e. hetdex shots
     for shot in shots:
-        exp = ee[2] # second exposure: 'exp03'
-        ii = (exposures == exp) * (allshots == 'virus0000{}'.format(shot[-3:]))
-        if not sum(ii) >= 1: # i.e. if there is no third exposure
-            goodshotmask[np.where(shs==shot)] = False
-            continue
+        #exp = ee[2] # second exposure: 'exp03'
+        for exp in ee:
+            ii = (exposures == exp) * (allshots == 'virus0000{}'.format(shot[-3:]))
+            if not sum(ii) >= 1: # i.e. if there is no third exposure
+                goodshotmask[np.where(shs==shot)] = False
+                continue
         fin = ff[ii][0]
         print("Reading {}".format(fin))
         try:
@@ -434,12 +435,12 @@ def main():
     errnull, errifu, errgauss = np.array(errnull).flatten(), np.array(errifu).flatten(), np.array(errgauss).flatten()
     eins, zwei, drei = abs(errnull[np.isfinite(errnull)]),abs(errifu[np.isfinite(errifu)]),abs(errgauss[np.isfinite(errgauss)])
     a = zwei[zwei>=zwei.mean()]
-    print('{} ifu errors are >= {} (mean)'.format(a.shape, zwei.mean))
+    print('{} of {} ifu errors are >= {} (mean)'.format(a.shape, zwei.shape, zwei.mean()))
     hdu1 = fits.PrimaryHDU(np.array(abs(errnull)))
     hdu2 = fits.ImageHDU(np.array(abs(errifu)), name='IFU')
     hdu3 = fits.ImageHDU(np.array(abs(errgauss)), name='Gauss')
     hdul = fits.HDUList([hdu1, hdu2, hdu3])
-    hdul.writeto('PCAerrors.fits')
+    hdul.writeto('PCAerrors.fits', overwrite=True)
     """
     plt.figure()
     plt.hist([eins, zwei, drei], label=['null','ifu','gauss'], normed=True, bins = np.arange(0,1,0.1))
