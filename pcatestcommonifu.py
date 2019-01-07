@@ -59,7 +59,7 @@ def get_common_sky(nights,ifu):
     sky_spectra, fiber_to_fiber = np.array(sky_spectra), np.array(fiber_to_fiber) # shape (i, 110, 1010) oder so
     print('sky_spectra.shape: ', sky_spectra.shape)
     #print('fiber_to_fiber.shape: ', fiber_to_fiber.shape)
-    print('THIS: ', sky_spectra[np.where((allshots=='20180822v022')&(amps=='LL'))].shape)
+    print('THIS: ', sky_spectra[np.where((allshots=='20180822v022')&(amps=='LL'))].shape)  # Here we add the ''diffuse Lya emission''
     sky_spectra[np.where((allshots=='20180822v022')&(amps=='LL'))] = sky_spectra[np.where((allshots=='20180822v022')&(amps=='LL'))]+np.array([[gauss(20,600,8, np.arange(0,1010,1)) for i in range(112)] for j in range(3)])
 
     #sky_models = []
@@ -123,7 +123,7 @@ fiber = np.array(fiber)
 
 """
 
-for ifu in ['053']:
+for ifu in ss:#['053']:
     csm, ce, cs = get_common_sky(['20180822'],ifu)
 
     fiber = csm
@@ -174,7 +174,7 @@ for ifu in ['053']:
 
     fiber_pca = np.dot(fiber, imp.T)
 
-    for amp in ['LL']:
+    for amp in aa: #['LL']:
         allrescaled, allrepoly = [],[]
         #ifu = '025'
         #amp = 'RU'
@@ -319,6 +319,15 @@ for ifu in ['053']:
         print('\nallrepoly = {}'.format(np.nanstd(np.append(allrepoly[0,:,250:580], allrepoly[0,:,620:]))) )
         print('\nallrepoly = {}'.format(np.nanstd(np.append(allrepoly[1,:,250:580], allrepoly[1,:,620:]))))
         print('\nallrepoly = {}'.format(np.nanstd(np.append(allrepoly[2,:,250:580], allrepoly[2,:,620:]))))
+
+        for i in range(12):
+            fin = gg[i+6]  # this is specfic for the 20180822 shots... CHANGE IT!!!
+            hdu = fits.open(fin)
+            hdu.append(fits.ImageHDU(allrescaled[i], name='pcasky'))
+            hdu.append(fits.ImageHDU(allrepoly[i], name='pcarepoly'))
+            hdu.writeto(fin, overwrite=True)
+            print('Wrote {}'.format(fin))
+
         #print(allrescaled.shape)
         plt.figure(figsize=(20,8))
         ax1 = plt.subplot(421)
@@ -408,10 +417,4 @@ for i in range(len(gg)):
         pass
     hdu.close()
 
-
-for i in range(12):
-    fin = gg[i+6]
-    hdu = fits.open(fin)
-    hdu.append(fits.ImageHDU(allrescaled[i], name='pcasky'))
-    hdu.append(fits.ImageHDU(allrepoly[i], name='pcarepoly'))
-    hdu.writeto(fin, overwrite=True)"""
+"""
