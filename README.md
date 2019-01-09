@@ -10,6 +10,5 @@ Write a list of the shots you want to use in the program xskysub_new.py in main(
 
 Run xskysub_new.py
 
-## pcatest.py or pcatestcommonifu.py
+## PCA sky subtraction
 
-Don't use them yet. So far they are only working for the 20180822 shots.
