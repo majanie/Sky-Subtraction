@@ -435,15 +435,15 @@ def main():
 
 
 
-            """for i in range(12):
-                fin = gg[i+6]  # this is specfic for the 20180822 shots... CHANGE IT!!!
+            for i in range(len(gg)):
+                fin = gg[i]  # this is specfic for the 20180822 shots... CHANGE IT!!!
                 hdu = fits.open(fin)
                 hdu.append(fits.ImageHDU(allrescaled[i], name='pcasky'))
                 hdu.append(fits.ImageHDU(allrepoly[i], name='pcarepoly'))
-                hdu.writeto(fin, overwrite=True)
+                hdu.writeto('{}_pcasky'.format(fin), overwrite=True)
                 print('Wrote {}'.format(fin))
 
-            #print(allrescaled.shape)
+            """#print(allrescaled.shape)
             plt.figure(figsize=(20,8))
             ax1 = plt.subplot(421)
             plt.plot(fiber22[35,0,580:620]-allrescaled[0,35,580:620], label='new')
