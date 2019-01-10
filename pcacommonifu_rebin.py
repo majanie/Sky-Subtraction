@@ -4,8 +4,6 @@ from astropy.io import fits
 import os
 #import matplotlib.pyplot as plt
 #import matplotlib.pylab as pylab
-from scipy.signal import medfilt
-from scipy.ndimage.filters import gaussian_filter
 
 # this function will create a linearely binned version
 # of a particular spectrum
@@ -305,7 +303,7 @@ def main():
 
     for ifu in ss:#['053']:
         #csm, ce, cs = get_common_sky() # (['20180822'],ifu)
-        csm = commonskies[np.where(ifuslots==ifu)]
+        csm = commonskies[np.where((ifuslots==ifu)&(amps=='LL'))]
         fiber = csm
         #fiber = fiber[6:]
         #fiber = np.concatenate((fiber[6:9],fiber[:6], fiber[9:]))
@@ -322,6 +320,8 @@ def main():
         fiber = (fiber - mean1)/std1
 
         cov_mat = np.cov(fiber.T)
+
+        cov_mat[np.where(np.isnan(cov_mat))] = 0 # to avoid linalg error
 
         eigenvals, eigenvecs = np.linalg.eig(cov_mat)
         eigenvals = np.real(eigenvals)
