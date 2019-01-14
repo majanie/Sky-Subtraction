@@ -356,92 +356,100 @@ def main():
             # shape (18, 112, 1032)
             spectrum = np.array(spectrum2)
 
-            fiber22 = np.transpose(fiber22, [1,0,2])
-            spectrum2 = np.transpose(spectrum2, [1,0,2])
-            #print('fiber22: ', fiber22.shape)
+            try:
 
-            for i in range(112):
-                fiber2 = fiber22[i]
+                fiber22 = np.transpose(fiber22, [1,0,2])
+                spectrum2 = np.transpose(spectrum2, [1,0,2])
+                #print('fiber22: ', fiber22.shape)
 
-                fiber2 = np.concatenate((fiber2, fiber2[:]+1*np.mean(fiber2[:], axis=0)))
+                for i in range(112):
+                    fiber2 = fiber22[i]
 
-                fiber2 = np.concatenate((fiber2, fiber2[:]+2*np.mean(fiber2[:], axis=0)))
-                fiber2 = np.concatenate((fiber2, fiber2[:]+2*np.mean(fiber2[:], axis=0)))
-                mean2 = fiber2.mean(axis=0)
-                std2 = fiber2.std(axis=0)
+                    fiber2 = np.concatenate((fiber2, fiber2[:]+1*np.mean(fiber2[:], axis=0)))
 
-                fiber2 = (fiber2 - mean2) / std2
+                    fiber2 = np.concatenate((fiber2, fiber2[:]+2*np.mean(fiber2[:], axis=0)))
+                    fiber2 = np.concatenate((fiber2, fiber2[:]+2*np.mean(fiber2[:], axis=0)))
+                    mean2 = fiber2.mean(axis=0)
+                    std2 = fiber2.std(axis=0)
 
-                y = np.array([faser/np.linalg.norm(faser) for faser in fiber2])
+                    fiber2 = (fiber2 - mean2) / std2
 
-                quasi2 = np.dot(scprod, y)
+                    y = np.array([faser/np.linalg.norm(faser) for faser in fiber2])
 
-                quasi2std, quasi2norm = np.zeros(quasi2.shape),np.zeros(quasi2.shape)
-                for i in range(quasi2.shape[0]):
-                    quasi2norm[i] = quasi2[i]/ np.linalg.norm(quasi2[i])
-                    quasi2std[i] = (quasi2[i] - np.mean(quasi2[i]))/np.std(quasi2[i])*np.std(imp[i])+np.mean(imp[i])
+                    quasi2 = np.dot(scprod, y)
 
-                quasitest2std = np.dot(fiber_pca, quasi2std)
-                quasitest2norm = np.dot(fiber_pca, quasi2norm)
+                    quasi2std, quasi2norm = np.zeros(quasi2.shape),np.zeros(quasi2.shape)
+                    for i in range(quasi2.shape[0]):
+                        quasi2norm[i] = quasi2[i]/ np.linalg.norm(quasi2[i])
+                        quasi2std[i] = (quasi2[i] - np.mean(quasi2[i]))/np.std(quasi2[i])*np.std(imp[i])+np.mean(imp[i])
 
-                for i in range(quasitest2std.shape[0]):
-                    quasitest2std[i] = quasitest2std[i]*std2 + mean2
-                    quasitest2norm[i] = quasitest2norm[i]*std2 + mean2
+                    quasitest2std = np.dot(fiber_pca, quasi2std)
+                    quasitest2norm = np.dot(fiber_pca, quasi2norm)
 
-                fiber2n = np.ones(fiber2.shape)
-                for i in range(len(fiber2)):
-                    fiber2n[i] = fiber2[i]*std2+mean2
+                    for i in range(quasitest2std.shape[0]):
+                        quasitest2std[i] = quasitest2std[i]*std2 + mean2
+                        quasitest2norm[i] = quasitest2norm[i]*std2 + mean2
 
-                req2std = (fiber2n-quasitest2std)/(fiber2n)
-                req2norm = (fiber2n-quasitest2norm)/(fiber2n)
+                    fiber2n = np.ones(fiber2.shape)
+                    for i in range(len(fiber2)):
+                        fiber2n[i] = fiber2[i]*std2+mean2
 
-                quasitest2norm = np.dot(fiber_pca, quasi2norm)*std2 + mean2
-                #rescaled = np.zeros(shape=quasitest2norm.shape)
-                repoly=[]
-                rescaled = []
-                f2 = fiber2*std2+mean2
-                #residuals = (f2-quasitest2std)/f2
-                residuals = (f2 - quasitest2std)/f2
-                x = np.arange(req2norm.shape[-1])
-                for i in range(12): #range(req2norm.shape[0]): bis 12 sind die ursprünglichen Spektren.
-                    re = residuals[i]
-                    sigma = np.nanstd(re[:250])
-                    remean = np.nanmean(re[:250])
-                    sigma2 = np.nanstd(re[250:])
-                    remean2 = np.nanmean(re[250:])
-                    kappa = 1
-                    flag = (np.isfinite(re[:250]))&(abs(re[:250]-remean)<=kappa*sigma)
-                    flag2 = (np.isfinite(re[250:]))&(abs(re[250:]-remean2)<=kappa*sigma2)
-                    flag = np.append(flag, flag2)
-                    pp = np.polyfit(x[np.where(flag)], re[np.where(flag)], 5)
-                    poly = pp[5]+x*pp[4]+x*x*pp[3]+x*x*x*pp[2]+x*x*x*x*pp[1] + x*x*x*x*x*pp[0]
-                    re = re - poly
-                    repoly.append(re)
-                    #rescaled[i] = quasitest2std[i]*(1+poly)
-                    rescaled.append(quasitest2std[i]*(1+poly))
-                repoly=np.array(repoly)
-                allrescaled.append(rescaled)
-                allrepoly.append(repoly)
+                    req2std = (fiber2n-quasitest2std)/(fiber2n)
+                    req2norm = (fiber2n-quasitest2norm)/(fiber2n)
 
-            allrescaled, allrepoly = np.array(allrescaled), np.array(allrepoly)
-            allrescaled = np.transpose(allrescaled, [1,0,2])
-            allrepoly = np.transpose(allrepoly, [1,0,2])
-            #print('allrescaled.shape: ', allrescaled.shape)
-            #print('allrepoly.shape: ', allrepoly.shape)
-            #print('\nallrepoly = {} +- {}'.format(np.nanmean(abs(repoly)), np.nanstd(abs(repoly))))
-            print('\nallrepoly = {}'.format(np.nanstd(np.append(allrepoly[0,:,250:580], allrepoly[0,:,620:]))) )
-            print('\nallrepoly = {}'.format(np.nanstd(np.append(allrepoly[1,:,250:580], allrepoly[1,:,620:]))))
-            print('\nallrepoly = {}'.format(np.nanstd(np.append(allrepoly[2,:,250:580], allrepoly[2,:,620:]))))
+                    quasitest2norm = np.dot(fiber_pca, quasi2norm)*std2 + mean2
+                    #rescaled = np.zeros(shape=quasitest2norm.shape)
+                    repoly=[]
+                    rescaled = []
+                    f2 = fiber2*std2+mean2
+                    #residuals = (f2-quasitest2std)/f2
+                    residuals = (f2 - quasitest2std)/f2
+                    x = np.arange(req2norm.shape[-1])
+                    for i in range(12): #range(req2norm.shape[0]): bis 12 sind die ursprünglichen Spektren.
+                        re = residuals[i]
+                        sigma = np.nanstd(re[:250])
+                        remean = np.nanmean(re[:250])
+                        sigma2 = np.nanstd(re[250:])
+                        remean2 = np.nanmean(re[250:])
+                        kappa = 1
+                        flag = (np.isfinite(re[:250]))&(abs(re[:250]-remean)<=kappa*sigma)
+                        flag2 = (np.isfinite(re[250:]))&(abs(re[250:]-remean2)<=kappa*sigma2)
+                        flag = np.append(flag, flag2)
+                        try:
+                            pp = np.polyfit(x[np.where(flag)], re[np.where(flag)], 5)
+                            poly = pp[5]+x*pp[4]+x*x*pp[3]+x*x*x*pp[2]+x*x*x*x*pp[1] + x*x*x*x*x*pp[0]
+                            re = re - poly
+                        except:
+                            pass
+                        repoly.append(re)
+                        #rescaled[i] = quasitest2std[i]*(1+poly)
+                        rescaled.append(quasitest2std[i]*(1+poly))
+                    repoly=np.array(repoly)
+                    allrescaled.append(rescaled)
+                    allrepoly.append(repoly)
+
+                allrescaled, allrepoly = np.array(allrescaled), np.array(allrepoly)
+                allrescaled = np.transpose(allrescaled, [1,0,2])
+                allrepoly = np.transpose(allrepoly, [1,0,2])
+                #print('allrescaled.shape: ', allrescaled.shape)
+                #print('allrepoly.shape: ', allrepoly.shape)
+                #print('\nallrepoly = {} +- {}'.format(np.nanmean(abs(repoly)), np.nanstd(abs(repoly))))
+                print('\nallrepoly = {}'.format(np.nanstd(np.append(allrepoly[0,:,250:580], allrepoly[0,:,620:]))) )
+                print('\nallrepoly = {}'.format(np.nanstd(np.append(allrepoly[1,:,250:580], allrepoly[1,:,620:]))))
+                print('\nallrepoly = {}'.format(np.nanstd(np.append(allrepoly[2,:,250:580], allrepoly[2,:,620:]))))
 
 
 
-            for i in range(len(gg)):
-                fin = gg[i]  # this is specfic for the 20180822 shots... CHANGE IT!!!
-                hdu = fits.open(fin)
-                hdu.append(fits.ImageHDU(allrescaled[i], name='pcasky'))
-                hdu.append(fits.ImageHDU(allrepoly[i], name='pcarepoly'))
-                hdu.writeto('{}_pcasky'.format(fin), overwrite=True)
-                print('Wrote {}'.format(fin))
+                for i in range(len(gg)):
+                    fin = gg[i]  # this is specfic for the 20180822 shots... CHANGE IT!!!
+                    hdu = fits.open(fin)
+                    hdu.append(fits.ImageHDU(allrescaled[i], name='pcasky'))
+                    hdu.append(fits.ImageHDU(allrepoly[i], name='pcarepoly'))
+                    hdu.writeto('{}_pcasky'.format(fin.split('/')[-1]), overwrite=True)
+                    print('Wrote {}'.format(fin))
+
+            except ValueError:
+                pass
 
             """#print(allrescaled.shape)
             plt.figure(figsize=(20,8))
