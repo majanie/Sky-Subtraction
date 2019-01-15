@@ -9,13 +9,7 @@ import os
 # of a particular spectrum
 from srebin import linlin
 
-#p))arams = {'legend.fontsize': 'x-large',
-         # 'figure.figsize': (15, 5),
-#         'axes.labelsize': 'x-large',
-#         'axes.titlesize':'x-large',
-#         'xtick.labelsize':'x-large',
-#         'ytick.labelsize':'x-large'}
-#pylab.rcParams.update(params)
+shots = ['20180124v010', '20180822v022'] # change this to the shots you want and maybe a few more
 
 def rebin(ff):
 
@@ -284,8 +278,8 @@ def flag_ifus(flagged_ifus, ifuslots, allshots):
     print('np.unique(ifuslots[np.where(niceifus)])',np.unique(ifuslots[np.where(niceifus)]))
     return niceifus
 
-def main():
-    shots = ['20180124v010', '20180822v022']
+def main(shots):
+    #shots = ['20180124v010', '20180822v022']
     ff, allshots, exposures, ifuslots, amps = find_indices(shots)
     ee, ss, aa, shs = np.unique(exposures), np.unique(ifuslots), np.unique(amps), np.unique(allshots)# np.unique(shots)# np.unique(['{}v{}'.format(night, x[-3:]) for night,x in zip(nights,allshots)])
 
@@ -541,4 +535,4 @@ def main():
         hdu.close()
 
     """
-main()
+main(shots)
