@@ -445,7 +445,7 @@ def main():
                     hdu = fits.open(fin)
                     hdu.append(fits.ImageHDU(allrescaled[i], name='pcasky'))
                     hdu.append(fits.ImageHDU(allrepoly[i], name='pcarepoly'))
-                    hdu.writeto('{}_pcasky'.format(fin.split('/')[-1]), overwrite=True)
+                    hdu.writeto('pcasky_{}'.format(fin.split('/')[-1]), overwrite=True)
                     print('Wrote {}'.format(fin))
 
             except ValueError:
