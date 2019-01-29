@@ -4,7 +4,7 @@ import numpy as np
 import os
 from sklearn.decomposition import PCA
 
-"""Simple PCA using all rebinned sky spectra in 2018. For each IFU (all amplifiers), PCA (i.e. dimensionality reduction) 
+"""Simple PCA using all rebinned sky spectra in 2018. For each IFU (all amplifiers), PCA (i.e. dimensionality reduction)
 with n = 20 components is applied and the resulting sky spectra for the cosmos shots are saved as pickle files."""
 
 def load_skys(ff,which="sky_spectrum"): # loads rebinned sky spectra divided by fiber to fiber from the pickle files
@@ -50,9 +50,9 @@ def save_sky(IFU, amp , k, pca_sky): # saves new pca sky spectra in the pickle f
     ww,rb = pickle.load( open(fname,'rb'), encoding='iso-8859-1' )
     #rb["fiber_to_fiber"] = rb["fiber_to_fiber"][:,:N]
     rb["pca_sky_spectrum"] = rb["sky_spectrum"].copy()
-    #b["pca_sky_spectrum"][:,:N][:,ii] = pca_sky * rb["fiber_to_fiber"][:,:N][:,ii] 
+    #b["pca_sky_spectrum"][:,:N][:,ii] = pca_sky * rb["fiber_to_fiber"][:,:N][:,ii]
     rb["pca_sky_spectrum"] = pca_sky * rb["fiber_to_fiber"]
-    print('\nshape pca sky spectrum: ', rb['pca_sky_spectrum'].shape)
+    #print('\nshape pca sky spectrum: ', rb['pca_sky_spectrum'].shape)
 
     ### HIER
     rb['sky_subtracted'] = rb['sky_subtracted'] + rb['sky_spectrum'] - rb['pca_sky_spectrum']
@@ -89,7 +89,7 @@ ifus = np.unique(ifus)
 
 
 for ifuslot in ifus:
-    ff_022_LL = glob.glob("/data/hetdex/u/mxhf/rebin/2018????v???/exp0?/multi_???_{}_???_??_rebin.pickle".format(ifuslot)) 
+    ff_022_LL = glob.glob("/data/hetdex/u/mxhf/rebin/2018????v???/exp0?/multi_???_{}_???_??_rebin.pickle".format(ifuslot))
 
     skys = {}
     ww,skys[("022","LL")],sff = load_skys(ff_022_LL,which="sky_spectrum")
@@ -125,17 +125,22 @@ for ifuslot in ifus:
     #for i in cosmoskeys:
     #    fcut[i] += gauss(a,b,c,x)
 
+    STDDIV = False # divide by standard deviation or not
+
     meanf = np.nanmean(fcut, axis=0)
-    stdf = np.nanstd(fcut, axis=0)
+    if STDDIV:
+        stdf = np.nanstd(fcut, axis=0)
+    else:
+        stdf = 1
     fmid = (fcut - meanf)/stdf # normalize spectra
-    
+
     print('shape fmid: ',fmid.shape)
-    
+
     fmid[~np.isfinite(fmid)] = 0
 
     # PCA \(^-^)/
     pca=None
-    ncomp = 20
+    ncomp = 28
     pca = PCA(n_components=ncomp)
 
     pca.fit(fmid)
