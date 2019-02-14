@@ -78,7 +78,7 @@ def rebin(ff, allshots, exposures, ifuslots, amps):
                 hdu.writeto('../xsky/{}/{}/x_{}'.format(allshots[i], exposures[i], fin.split('/')[-1]), overwrite=True)
                 hdu.close()
                 print('wrote to ../xsky/{}/{}/x_{}'.format(allshots[i], exposures[i], fin.split('/')[-1]))
-    ww = ww
+    ww = np.arange(0,1010,1)
     sky_spectra = np.array(sky_spectra)
     spectra = np.array(spectra)
     fiber_to_fiber = np.array(fiber_to_fiber)
