@@ -19,20 +19,62 @@ def flag_ifus(flagged_ifus, ifuslots, allshots):
     #print(np.unique(ifuslots[np.where(niceifus)]))
     return niceifus
 
-def rebin(ff):
+def rebin(ff, allshots, exposures, ifuslots, amps):
 
     """ turnes sky spectrum, spectrum, and fiber-to-fiber arrays into linearly binned versions """
     number = ff.shape[0]
-    i = 0
+    #i = -1
+    FORCE_REBIN = True
 
     sky_spectra, spectra, fiber_to_fiber = [], [], []
-    for fin in ff:
-        i += 1
-        ww, rebinned = get_rebinned(fin)
-        print('rebinned {}/{}'.format(i, number))
-        sky_spectra.append(rebinned['sky_spectrum'])
-        spectra.append(rebinned['spectrum'])
-        fiber_to_fiber.append(rebinned['fiber_to_fiber'])
+    for i in range(ff.shape[0]):
+        fin = ff[i]
+        if FORCE_REBIN:
+            ww, rebinned = get_rebinned(fin)
+            if (i%100)==0:
+                print('rebinned {}/{}'.format(i, number))
+            sky_spectra.append(rebinned['sky_spectrum'])
+            spectra.append(rebinned['spectrum'])
+            fiber_to_fiber.append(rebinned['fiber_to_fiber'])
+            hdu1 = fits.open(fin)
+            #hdu1["spectrum"], 
+            hdu = fits.HDUList([fits.PrimaryHDU(hdu1["spectrum"].data), hdu1["sky_spectrum"] ])
+            #hdu.append(fits.ImageHDU( xskysub[i], name='xsky_subtracted'))
+            #hdu.append(fits.ImageHDU( res[i], name='rel_error'))
+            # spectra, xsky
+            hdu.append(fits.ImageHDU(rebinned['spectrum'], name='spectrum_rb'))
+            #hdu.append(fits.ImageHDU(xsky[i], name='xsky_spectrum_rb'))
+            hdu.append(fits.ImageHDU(rebinned['sky_spectrum'], name='sky_spectrum_rb'))
+
+            hdu.writeto('../xsky/{}/{}/x_{}'.format(allshots[i], exposures[i], fin.split('/')[-1]), overwrite=True)
+            hdu.close()
+            print('wrote to ../xsky/{}/{}/x_{}'.format(allshots[i], exposures[i], fin.split('/')[-1]))
+        else:
+            try:
+                hdu = fits.open('../xsky/{}/{}/x_{}'.format(allshots[i], exposures[i], fin.split('/')[-1]))
+                sky_spectra.append(hdu["sky_spectrum_rb"].data)
+                spectra.append(hdu["spectrum_rb"].data)
+                print("found ../xsky/{}/{}/x_{}".format(allshots[i], exposures[i], fin.split('/')[-1]))
+            except:
+                ww, rebinned = get_rebinned(fin)
+                if (i%100)==0:
+                    print('rebinned {}/{}'.format(i, number))
+                sky_spectra.append(rebinned['sky_spectrum'])
+                spectra.append(rebinned['spectrum'])
+                fiber_to_fiber.append(rebinned['fiber_to_fiber'])
+                hdu1 = fits.open(fin)
+                #hdu1["spectrum"], 
+                hdu = fits.HDUList([fits.PrimaryHDU(hdu1["spectrum"].data), hdu1["sky_spectrum"] ])
+                #hdu.append(fits.ImageHDU( xskysub[i], name='xsky_subtracted'))
+                #hdu.append(fits.ImageHDU( res[i], name='rel_error'))
+                # spectra, xsky
+                hdu.append(fits.ImageHDU(rebinned['spectrum'], name='spectrum_rb'))
+                #hdu.append(fits.ImageHDU(xsky[i], name='xsky_spectrum_rb'))
+                hdu.append(fits.ImageHDU(rebinned['sky_spectrum'], name='sky_spectrum_rb'))
+
+                hdu.writeto('../xsky/{}/{}/x_{}'.format(allshots[i], exposures[i], fin.split('/')[-1]), overwrite=True)
+                hdu.close()
+                print('wrote to ../xsky/{}/{}/x_{}'.format(allshots[i], exposures[i], fin.split('/')[-1]))
     ww = ww
     sky_spectra = np.array(sky_spectra)
     spectra = np.array(spectra)
@@ -153,14 +195,20 @@ def save_fits(ff, xskysub, res, allshots, exposures, shots, overwrite):
 
     for i in range(len(ff)):
         fin = ff[i]
-        hdu = fits.open(fin)
+        hdu1 = fits.open(fin)
+        hdu = fits.HDUList([fits.PrimaryHDU(hdu1["spectrum"].data),hdu1["sky_spectrum"]])
+        hdu1.close()
         hdu.append(fits.ImageHDU( xskysub[i], name='xsky_subtracted'))
-        hdu.append(fits.ImageHDU( res[i], name='rel_error'))
+        #hdu.append(fits.ImageHDU( res[i], name='rel_error'))
+        # spectra, xsky
+        hdu.append(fits.ImageHDU(spectra[i], name='spectrum_rb'))
+        hdu.append(fits.ImageHDU(xsky[i], name='xsky_spectrum_rb'))
+        hdu.append(fits.ImageHDU(sky_spectra[i], name='sky_spectrum_rb'))
 
         if overwrite:
             hdu.writeto(fin, overwrite = True)
         else:
-            hdu.writeto('xskynew{}_{}_{}'.format(allshots[i], exposures[i], fin.split('/')[-1]), overwrite=True)
+            hdu.writeto('../xsky/{}/{}/x_{}'.format(allshots[i], exposures[i], fin.split('/')[-1]), overwrite=True)
         hdu.close()
 
 
@@ -271,7 +319,10 @@ def find_indices(shots):
 
 
 def main():
-    shots = ['20180822v008','20180822v009','20180822v020','20180822v021','20180822v022','20180822v023']#['20180124v010','20180124v011']
+    REBIN_ONLY = True
+    with open("shots-22.txt","r") as shotlist:
+        shotlist = shotlist.read().split("\n")[:-1]
+    shots = shotlist #['20180822v008','20180822v009','20180822v020','20180822v021','20180822v022','20180822v023']#['20180124v010','20180124v011']
     flagged_ifus =  {'20180822v008':['044', '093', '094', '095', '106'],
                     '20180822v009':[ '092', '094' '106'],
                     '20180822v020':['094'],
@@ -284,11 +335,15 @@ def main():
 
     ff, allshots, exposures, ifuslots, amps = find_indices(shots)
     overwrite = False
-
+    #print(ff)
+    #print(ff.shape)
+    #return
     niceifus = flag_ifus(flagged_ifus, ifuslots, allshots)
     print('flagged ifus')
-    sky_spectra, spectra, fiber_to_fiber, ww = rebin(ff)
+    sky_spectra, spectra, fiber_to_fiber, ww = rebin(ff, allshots, exposures, ifuslots, amps)
     print('rebinned')
+    if REBIN_ONLY:
+        return
     sky_models = get_skymodels(sky_spectra, fiber_to_fiber)
     print('sky_models')
     commonskies = get_commonsky(sky_models, shots, allshots, exposures, niceifus)
