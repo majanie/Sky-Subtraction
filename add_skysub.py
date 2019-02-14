@@ -16,6 +16,20 @@ pattern = "/work/03946/hetdex/maverick/red1/reductions/{}/virus/virus0000{}/{}/v
 
 def get_rebinned(fin ,extensions=['spectrum', 'sky_spectrum', 'fiber_to_fiber'], start = 3494.74, step =  1.9858398, stop = 5500.):
 
+	"""    #print("Reading {}".format(fin))
+    hdu = fits.open(fin)
+
+    wl = hdu['wavelength'].data
+
+    #start,stop = 3503.9716796, 5396.477
+    N = int( np.ceil( (stop - start)/step ) )
+
+    rebinned = {}
+	"""
+
+	#start,stop = 3503.9716796, 5396.477
+	N = int( np.ceil( (stop - start)/step ) )
+
 	#print("Reading {}".format(fin))
 	hdu = fits.open(fin)
 
@@ -31,6 +45,7 @@ def get_rebinned(fin ,extensions=['spectrum', 'sky_spectrum', 'fiber_to_fiber'],
 		#    hdu[ext].data[:, j] = np.ones(hdu[ext].data.shape[0])*np.nan
 		#print("Rebinning {}".format(ext))
 
+		new = np.zeros([wl.shape[0], N])
 		hduextdata = hdu[ext].data
 		for i in range(wl.shape[0]):
 			w = wl[i,:]
@@ -62,7 +77,7 @@ for fin in ff[:3]:
 		skysub = hdu["sky_subtracted_rb"].data
 		print("Found sky subtracted rb in "+fin)
 		hdu.close()
-	except:
+	except KeyError:
 		ww, rb = get_rebinned(newfin, extensions=["sky_subtracted"])
 		hdu.append(fits.ImageHDU(rb["sky_subtracted"], name="sky_subtracted_rb"))
 		hdu.writeto(fin, overwrite=True)
