@@ -75,10 +75,12 @@ for fin in ff[:3]:
 	hdu = fits.open(fin)
 	try:
 		skysub = hdu["sky_subtracted_rb"].data
-		print("Found sky subtracted rb in "+fin)
+		fiber_to_fiber = hdu["fiber_to_fiber_rb"].data
+		print("Found sky subtracted and fiber to fiber rb in "+fin)
 		hdu.close()
 	except KeyError:
-		ww, rb = get_rebinned(newfin, extensions=["sky_subtracted"])
+		ww, rb = get_rebinned(newfin, extensions=["sky_subtracted","fiber_to_fiber"])
 		hdu.append(fits.ImageHDU(rb["sky_subtracted"], name="sky_subtracted_rb"))
+		hdu.append(fits.ImageHDU(rb["fiber_to_fiber"], name="fiber_to_fiber_rb"))
 		hdu.writeto(fin, overwrite=True)
 		print("Wrote to "+fin)
