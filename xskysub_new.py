@@ -24,9 +24,10 @@ def rebin(ff, allshots, exposures, ifuslots, amps):
     """ turnes sky spectrum, spectrum, and fiber-to-fiber arrays into linearly binned versions """
     number = ff.shape[0]
     #i = -1
-    FORCE_REBIN = True
+    FORCE_REBIN = False
 
     sky_spectra, spectra, fiber_to_fiber = [], [], []
+    sky_subtracted = []
     for i in range(ff.shape[0]):
         fin = ff[i]
         if FORCE_REBIN:
@@ -54,6 +55,8 @@ def rebin(ff, allshots, exposures, ifuslots, amps):
                 hdu = fits.open('../xsky/{}/{}/x_{}'.format(allshots[i], exposures[i], fin.split('/')[-1]))
                 sky_spectra.append(hdu["sky_spectrum_rb"].data)
                 spectra.append(hdu["spectrum_rb"].data)
+                fiber_to_fiber.append(hdu["fiber_to_fiber_rb"].data)
+                sky_subtracted.append(hdu["sky_subtracted_rb"].data)
                 print("found ../xsky/{}/{}/x_{}".format(allshots[i], exposures[i], fin.split('/')[-1]))
             except:
                 ww, rebinned = get_rebinned(fin)
@@ -71,7 +74,7 @@ def rebin(ff, allshots, exposures, ifuslots, amps):
                 hdu.append(fits.ImageHDU(rebinned['spectrum'], name='spectrum_rb'))
                 #hdu.append(fits.ImageHDU(xsky[i], name='xsky_spectrum_rb'))
                 hdu.append(fits.ImageHDU(rebinned['sky_spectrum'], name='sky_spectrum_rb'))
-
+                hdu.append(fits.ImageHDU(rebinned["fiber_to_fiber"], name="fiber_to_fiber_rb"))
                 hdu.writeto('../xsky/{}/{}/x_{}'.format(allshots[i], exposures[i], fin.split('/')[-1]), overwrite=True)
                 hdu.close()
                 print('wrote to ../xsky/{}/{}/x_{}'.format(allshots[i], exposures[i], fin.split('/')[-1]))
@@ -87,7 +90,7 @@ def get_skymodels(sky_spectra, fiber_to_fiber):
     """ get (mean) sky for each amplifier """
     sky_models = []
     for i in range(sky_spectra.shape[0]):
-        sky_model = np.nanmean( sky_spectra[i] / fiber_to_fiber[i], axis = 0)
+        sky_model = np.nanmedian( sky_spectra[i] / fiber_to_fiber[i], axis = 0)
         sky_models.append(sky_model)
     sky_models = np.array(sky_models)
     #print('sky_models shape: ', sky_models.shape)
@@ -101,7 +104,7 @@ def get_commonsky(sky_models, shots, allshots, exposures, niceifus):
     for shot in shots:
         for exp in ['exp01','exp02','exp03']:
             thisnightandexp = np.where((allshots==shot)&(exposures==exp)&(niceifus))
-            commonsky = np.nanmean( sky_models[thisnightandexp] , axis = 0)
+            commonsky = np.nanmedian( sky_models[thisnightandexp] , axis = 0)
             commonskies[thisnightandexp] = commonsky
     return commonskies
 
@@ -128,7 +131,7 @@ def get_xrel_throughput(rel_throughput, allshots, exposures, ifuslots, amps, nic
             print('No xrt could be computed for shot {} exp {} ifu {} amp {}.'.format(shot, exp, ifu, amp))
             xrel_throughput.append(rel_throughput[i])
         else:
-            xrelthrough = np.nanmean(rel_throughput[np.where(here)], axis = 0)
+            xrelthrough = np.nanmedian(rel_throughput[np.where(here)], axis = 0)
             xrel_throughput.append(xrelthrough)
     xrel_throughput = np.array(xrel_throughput)
     return xrel_throughput
@@ -189,27 +192,41 @@ def sub_xsky(spectra, xsky):
     xskysub = spectra - xsky
     return xskysub
 
+def sub_xsky_new(sky_subtracted, sky_spectra, xsky):
+    xskysub = sky_subtracted + sky_spectra - xsky
+    return xskysub
+
 def save_fits(ff, xskysub, res, allshots, exposures, shots, overwrite):
 
     """ save multifits files with the new extensions 'xsky_subtracted' and 'rel_error' """
 
     for i in range(len(ff)):
         fin = ff[i]
-        hdu1 = fits.open(fin)
-        hdu = fits.HDUList([fits.PrimaryHDU(hdu1["spectrum"].data),hdu1["sky_spectrum"]])
-        hdu1.close()
-        hdu.append(fits.ImageHDU( xskysub[i], name='xsky_subtracted'))
-        #hdu.append(fits.ImageHDU( res[i], name='rel_error'))
-        # spectra, xsky
-        hdu.append(fits.ImageHDU(spectra[i], name='spectrum_rb'))
-        hdu.append(fits.ImageHDU(xsky[i], name='xsky_spectrum_rb'))
-        hdu.append(fits.ImageHDU(sky_spectra[i], name='sky_spectrum_rb'))
+        try:
+            hdu = fits.open('../xsky/{}/{}/x_{}'.format(allshots[i], exposures[i], fin.split('/')[-1]))
+            hdu.append(fits.ImageHDU( xskysub[i], name='xsky_subtracted'))
+            hdu.append(fits.ImageHDU(xsky[i], name='xsky_spectrum_rb'))
+            hdu.writeto('../xsky/{}/{}/x_{}'.format(allshots[i], exposures[i], fin.split('/')[-1]))
+            print("found and wrote "+'../xsky/{}/{}/x_{}'.format(allshots[i], exposures[i], fin.split('/')[-1]))
+        except:
+            hdu1 = fits.open(fin)
+            hdu = fits.HDUList([fits.PrimaryHDU(hdu1["spectrum"].data),hdu1["sky_spectrum"]])
+            hdu1.close()
+            hdu.append(fits.ImageHDU( xskysub[i], name='xsky_subtracted'))
+            #hdu.append(fits.ImageHDU( res[i], name='rel_error'))
+            # spectra, xsky
+            hdu.append(fits.ImageHDU(spectra[i], name='spectrum_rb'))
+            hdu.append(fits.ImageHDU(xsky[i], name='xsky_spectrum_rb'))
+            hdu.append(fits.ImageHDU(sky_spectra[i], name='sky_spectrum_rb'))
+            hdu.append(fits.ImageHDU(sky_subtracted[i], name="sky_subtracted_rb"))
+            hdu.append(fits.ImageHDU(fiber_to_fiber[i], name="fiber_to_fiber_rb"))
 
-        if overwrite:
-            hdu.writeto(fin, overwrite = True)
-        else:
-            hdu.writeto('../xsky/{}/{}/x_{}'.format(allshots[i], exposures[i], fin.split('/')[-1]), overwrite=True)
-        hdu.close()
+            if overwrite:
+                hdu.writeto(fin, overwrite = True)
+            else:
+                hdu.writeto('../xsky/{}/{}/x_{}'.format(allshots[i], exposures[i], fin.split('/')[-1]), overwrite=True)
+                print("wrote "+'../xsky/{}/{}/x_{}'.format(allshots[i], exposures[i], fin.split('/')[-1]))
+            hdu.close()
 
 
     hdu = fits.PrimaryHDU(np.arange(0,1,2))
@@ -319,7 +336,7 @@ def find_indices(shots):
 
 
 def main():
-    REBIN_ONLY = True
+    REBIN_ONLY = False
     with open("shots-22.txt","r") as shotlist:
         shotlist = shotlist.read().split("\n")[:-1]
     shots = shotlist #['20180822v008','20180822v009','20180822v020','20180822v021','20180822v022','20180822v023']#['20180124v010','20180124v011']
@@ -356,7 +373,7 @@ def main():
     print('xsky spectra')
     xsky, res = scale_poly(commonskies, sky_spectra, xsky, ww )
     print('scaled poly')
-    xskysub = sub_xsky(spectra, xsky)
+    xskysub = sub_xsky_new(sky_subtracted, sky_spectra, xsky) #sub_xsky(spectra, xsky)
     print('xsky subtracted \(^-^)/')
     save_fits(ff, xskysub, res, allshots, exposures, shots, overwrite)
     print('saved fits')
