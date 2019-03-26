@@ -2,9 +2,9 @@
 
 ## PCA sky subtraction
 
-### people from the LSS group who want to see what we did
+### people from the LSS group :)
 
-Look at the PCAmeanifu.py program. It is the simplest that hopefully gives insight to what we did. This is what Max talked about.
+Look at the PCAmeanifu.py program. It is the simplest that hopefully gives insight to what we did. This is what Max talked about. However, it is not what worked best (e.g. not dividing by the standard deviation improved the sky subtraction somewhat).
 
 ### otherwise -- Bachelor thesis version
 
