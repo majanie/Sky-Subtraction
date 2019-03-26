@@ -2,8 +2,7 @@
 
 ### people from the LSS group :)
 
-Look at the PCAmeanifu.py program. It is the simplest that provides an insight into what we did. This is what Max talked about. However, we played with several things and this is not the best-working version (e.g. not dividing by the standard deviation improved the sky subtraction somewhat).
-
+Look at the PCA-skysub.ipynb notebook.
 
 ### otherwise - Bachelor thesis version
 
