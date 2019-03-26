@@ -6,7 +6,7 @@
 
 Look at the PCAmeanifu.py program. It is the simplest that hopefully gives insight to what we did. This is what Max talked about.
 
-### otherwise
+### otherwise -- Bachelor thesis version
 
 Use on TACC.
 
