@@ -283,7 +283,6 @@ nwave_iter, smooth_iter = make_avg_spec(wavelength[flag], sky_spectra_iter[flag]
 #nwave, smooth = get_common_sky(sky_spectra, fiber_to_fiber, wavelength)
 
 csm_iter = interp1d(nwave_iter, smooth_iter, fill_value="extrapolate")
-THRESHOLD = 1.03
 # get new (iterated) sky as csm * xrt * f2t * factor
 final_adj=[]
 new_sky_iter = sky_spectra_iter.copy()
@@ -310,6 +309,7 @@ order = np.argsort(ifuslots)
 # subtract final sky
 second_skysub_iter = []
 medianfilters = []
+fiber_to_fiber_int, new_sky_iter_int = [], []
 N = len(sky_spectra)
 
 size = (8,8)
@@ -326,6 +326,7 @@ for i in order:#range(len(sky_spectra))[START:STOP]:
 	new_skysub_rel  = new_skysub/(new_sky_iter[i]*(1+rescor[(ifuslots[i], amps[i])]))
 	new_skysub_int = []
 	new_skysub_int_rel = []
+	f2f_int, nsi_int = [], []
 	new_skysub[sky_spectra[i]==0] = 0
 	new_skysub_rel[sky_spectra[i]==0] = 0
 	for j in range(112):
@@ -334,61 +335,79 @@ for i in order:#range(len(sky_spectra))[START:STOP]:
 		#dw = 1
 		new_skysub_int.append(np.interp(def_wave, wavelength[i,j], new_skysub[j]/dw, left=0.0, right=0.0))
 		new_skysub_int_rel.append(np.interp(def_wave, wavelength[i,j], new_skysub_rel[j]/dw, left=0.0, right=0.0))
+		f2f_int.append(np.interp(def_wave, wavelength[i,j], fiber_to_fiber[i,j], left=1., right=1.))
+		nsi_int.append(np.interp(def_wave, wavelength[i,j], new_sky_iter[i,j]/dw, left=0.0, right=0.0))
 	second_skysub_iter.append(new_skysub_int)
 	relres.append(new_skysub_int_rel)
+	fiber_to_fiber_int.append(f2f_int)
+	new_sky_iter_int.append(nsi_int)
 
 	print( "done {} / {} ".format(i, N))
 second_skysub_iter = np.array(second_skysub_iter)
 relres = np.array(relres)
+fiber_to_fiber_int, new_sky_iter_int = np.array(fiber_to_fiber_int), np.array(new_sky_iter_int)
 
 tickarray = np.array(np.split((np.arange(flag.size)), flag.shape[0]))[START:STOP][np.where(~flag[order])]
 
 ampticks = np.arange(N)*112
 
-plt.figure(figsize=(25,200))
-plt.subplot(131)
-plt.title("original")
-plt.imshow(np.concatenate(sky_subtracted[order]), vmin=-40, vmax=40, interpolation="none", aspect="auto", cmap="Greys_r")
-plt.yticks((tickarray - START*112), 'x'*len(tickarray), color='red'); #- START*112
-#plt.colorbar();
-plt.subplot(132)
-plt.title("xskysub")
-plt.imshow(np.concatenate(second_skysub_iter), vmin=-20, vmax=20, interpolation="none", aspect="auto", cmap="Greys_r")
-plt.yticks(ampticks, [ifuslots[i]+amps[i] for i in order], rotation=90)#(tickarray - START*112, 'x'*len(tickarray), color='red')
-#plt.colorbar();
-plt.subplot(133)
-plt.title("relative residuals")
-plt.imshow(np.concatenate(relres), vmin=-0.02, vmax=0.02, interpolation="none", aspect="auto", cmap="Greys_r");
-plt.yticks(ampticks, [ifuslots[i]+amps[i] for i in order], rotation=90);
-#plt.colorbar(orientation="horizontal");""""""
-plt.savefig('../lsspresent/test-fullframe-{}-{}-own-smooth-skip.png'.format(shot, exp), bbox_inches='tight')
+PLOT = False
+PCAPLOT = False
+if PLOT:
+	plt.figure(figsize=(25,200))
+	plt.subplot(131)
+	plt.title("original")
+	plt.imshow(np.concatenate(sky_subtracted[order]), vmin=-40, vmax=40, interpolation="none", aspect="auto", cmap="Greys_r")
+	plt.yticks((tickarray - START*112), 'x'*len(tickarray), color='red'); #- START*112
+#	plt.colorbar();
+	plt.subplot(132)
+	plt.title("xskysub")
+	plt.imshow(np.concatenate(second_skysub_iter), vmin=-20, vmax=20, interpolation="none", aspect="auto", cmap="Greys_r")
+	plt.yticks(ampticks, [ifuslots[i]+amps[i] for i in order], rotation=90)#(tickarray - START*112, 'x'*len(tickarray), color='red')
+#	plt.colorbar();
+	plt.subplot(133)
+	plt.title("relative residuals")
+	plt.imshow(np.concatenate(relres), vmin=-0.02, vmax=0.02, interpolation="none", aspect="auto", cmap="Greys_r");
+	plt.yticks(ampticks, [ifuslots[i]+amps[i] for i in order], rotation=90);
+#	plt.colorbar(orientation="horizontal");""""""
+	plt.savefig('../lsspresent/test-fullframe-{}-{}-own-smooth-skip.png'.format(shot, exp), bbox_inches='tight')
 
-# compare to fullframe pca
-fullframepca = pickle.load(open('../fullframe-{}-{}-pca.pickle'.format(shot, exp),'rb'))
-pcaarray = []
-for i in order:
-	try:
-		pcaarray.append(fullframepca[(ifuslots[i], amps[i])])
-	except KeyError as e:
-		pcaarray.append(np.zeros((112,1010)))
-		print e
-pcashow = np.concatenate(pcaarray)
+if PCAPLOT:
+	# compare to fullframe pca
+	fullframepca = pickle.load(open('../fullframe-{}-{}-pca.pickle'.format(shot, exp),'rb'))
+	pcaarray = []
+	for i in order:
+		try:
+			pcaarray.append(fullframepca[(ifuslots[i], amps[i])])
+		except KeyError as e:
+			pcaarray.append(np.zeros((112,1010)))
+			print e
+	pcashow = np.concatenate(pcaarray)
 
-plt.figure(figsize=(25,200))
-plt.subplot(131)
-plt.title("original")
-plt.imshow(np.concatenate(sky_subtracted[order]), vmin=-40, vmax=40, interpolation="none", aspect="auto", cmap="Greys_r")
-plt.yticks((tickarray - START*112), 'x'*len(tickarray), color='red'); #- START*112
-#plt.colorbar();
-plt.subplot(132)
-plt.title("xskysub")
-plt.imshow(np.concatenate(second_skysub_iter), vmin=-20, vmax=20, interpolation="none", aspect="auto", cmap="Greys_r")
-plt.yticks(ampticks, [ifuslots[i]+amps[i] for i in order], rotation=90)#(tickarray - START*112, 'x'*len(tickarray), color='red')
-#plt.colorbar();
-plt.subplot(133)
-plt.title("pca skysub")
-plt.imshow(pcashow, vmin=-40, vmax=40, interpolation="none", aspect="auto", cmap="Greys_r");
-plt.yticks(ampticks, [ifuslots[i]+amps[i] for i in order], rotation=90);
-#plt.colorbar(orientation="horizontal");""""""
-plt.savefig('../lsspresent/test-fullframe-{}-{}-own-smooth-skip-pca.png'.format(shot, exp), bbox_inches='tight')
-print 'hi'
+	plt.figure(figsize=(25,200))
+	plt.subplot(131)
+	plt.title("original")
+	plt.imshow(np.concatenate(sky_subtracted[order]), vmin=-40, vmax=40, interpolation="none", aspect="auto", cmap="Greys_r")
+	plt.yticks((tickarray - START*112), 'x'*len(tickarray), color='red'); #- START*112
+#	plt.colorbar();
+	plt.subplot(132)
+	plt.title("xskysub")
+	plt.imshow(np.concatenate(second_skysub_iter), vmin=-20, vmax=20, interpolation="none", aspect="auto", cmap="Greys_r")
+	plt.yticks(ampticks, [ifuslots[i]+amps[i] for i in order], rotation=90)#(tickarray - START*112, 'x'*len(tickarray), color='red')
+#	plt.colorbar();
+	plt.subplot(133)
+	plt.title("pca skysub")
+	plt.imshow(pcashow, vmin=-40, vmax=40, interpolation="none", aspect="auto", cmap="Greys_r");
+	plt.yticks(ampticks, [ifuslots[i]+amps[i] for i in order], rotation=90);
+#	plt.colorbar(orientation="horizontal");""""""
+	plt.savefig('../lsspresent/test-fullframe-{}-{}-own-smooth-skip-pca.png'.format(shot, exp), bbox_inches='tight')
+
+SAVEASPICKLE = True
+if SAVEASPICKLE:
+	for j,i in enumerate(order):
+		thissubtracted = second_skysub_iter[j]
+		thisifu, thisamp = ifuslots[i], amps[i]
+		filename = open('../skysubtractedfiles/{}/{}/xsub_multi_xxx_{}_xxx_{}_rebin.pickle'.format(shot, exp, thisifu, thisamp),'wb')
+		pickle.dump((def_wave, {'sky_subtracted':thissubtracted,'sky_spectrum':new_sky_iter_int[i],'fiber_to_fiber':fiber_to_fiber_int[i]}), filename)
+		print('wrote to ../skysubtractedfiles/{}/{}/xsub_multi_xxx_{}_xxx_{}_rebin.pickle'.format(shot, exp, thisifu, thisamp))
+
