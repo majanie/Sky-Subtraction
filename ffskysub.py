@@ -407,7 +407,12 @@ for i in order:#range(len(sky_spectra))[START:STOP]:
 		medfilt[~np.isfinite(medfilt)] = 0
 		medianfilters.append(medfilt)
 		new_skysub -= medfilt
-	#new_skysub_rel  = new_skysub/(new_sky_iter[i]*(1+rescor[(ifuslots[i], amps[i])]))
+	new_skysub_rel  = new_skysub/(new_sky_iter[i]*(1+rescor[(ifuslots[i], amps[i])]))
+
+	primhdu = fits.PrimaryHDU(new_skysub_rel)
+	hdul = fits.HDUList([primhdu])
+	hdul.writeto("/work/05865/maja_n/stampede2/rescor/tmp/rc_"+shot+"_"+exp+"_"+multinames[i]+".fits", overwrite=True)
+	print("wrote to /work/05865/maja_n/stampede2/rescor/tmp/rc_"+shot+"_"+exp+"_"+multinames[i]+".fits")
 	new_skysub_int = []
 	#orig_int = []
 	#new_skysub_int_rel = []
@@ -446,13 +451,15 @@ print("second Skysub iter.shape : ", second_skysub_iter.shape)
 
 SAVEASFITS = True
 if SAVEASFITS:
-	for i in order:
+	for i in range(len(order)):
 		idx = order[i]
 		name = multinames[idx]
 		thisskysub = second_skysub_iter[i]
+		#thissky = new_sky_iter[idx]*(1+rescor[(ifuslots[idx],amps[idx])])
 		header = fits.Header()
 		header['wavelength_shift'] = wlshifts[idx]
 		hdu = fits.PrimaryHDU(thisskysub, header=header)
+		#hdu2 = fits.ImageHDU(thissky, name="sky_spectrum")
 		hdulist = fits.HDUList([hdu])
 		filename = '/work/05865/maja_n/stampede2/ffskysub/{}/{}/{}.fits'.format(shot,exp,name)
 		hdulist.writeto(filename, overwrite=True)
