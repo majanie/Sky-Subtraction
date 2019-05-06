@@ -351,6 +351,7 @@ for i in range(new_sky_iter.shape[0]):
 			print diff
 			wlshifts.append(diff)
 		except Exception as e:
+			wlshifts.append(0.0)
 			print e
 			new_sky_iter[i] = csm_iter(wavelength[i]) * xrt[(ifuslots[i], amps[i])](wavelength[i]) * factor * fiber_to_fiber[i] #* ata_adj[i]
 	
