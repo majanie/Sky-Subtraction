@@ -387,6 +387,8 @@ for i in np.where((ifuslots=='013'))[0]:
     for j in range(112):
         new_sky_iter[i,j] = gaussian_filter(new_sky_iter[i,j], sigma=0.3*2)
 
+#for i in np.where((ifuslots=="074")&((amps=="RL") or (amps=="LL"))[0]:
+
 order = np.argsort(ifuslots)
 
 # subtract final sky
@@ -408,6 +410,7 @@ for i in order:#range(len(sky_spectra))[START:STOP]:
 		medfilt[~np.isfinite(medfilt)] = 0
 		medianfilters.append(medfilt)
 		new_skysub -= medfilt
+	new_skysub[sky_spectra[i]==0] = 0
 	new_skysub_rel  = new_skysub/(new_sky_iter[i]*(1+rescor[(ifuslots[i], amps[i])]))
 
 	primhdu = fits.PrimaryHDU(new_skysub_rel)
@@ -418,7 +421,6 @@ for i in order:#range(len(sky_spectra))[START:STOP]:
 	#orig_int = []
 	#new_skysub_int_rel = []
 	#f2f_int, nsi_int = [], []
-	new_skysub[sky_spectra[i]==0] = 0
 	#new_skysub_rel[sky_spectra[i]==0] = 0
 	if INTERPOLATE:
 		for j in range(112):
