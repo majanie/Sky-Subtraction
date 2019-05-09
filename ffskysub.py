@@ -90,6 +90,22 @@ def get_rescor(ifuslots, amps, def_wave):
 				pass
 	return rescor
 
+def get_updated_rescor():
+	rescor_pattern = "/work/05865/maja_n/stampede2/rescor/rc_full_{}.fits"
+	ifus = np.unique(ifuslots)
+        aa = np.unique(amps)
+	rescor2 = {}
+	for ifu in ifus:
+                for amp in aa:
+                        try:
+				gg = rescor_pattern.format(ifu+amp)
+                                rc = fits.open(gg)[0].data
+                                rescor2[(ifu, amp)] = np.array(rc)
+                        except IndexError:
+                                rescor2[(ifu, amp)] = np.zeros((112,1032))
+                                pass
+        return rescor2
+
 def get_xrt_new():
 	xrt_0, wave = pickle.load(open('xrt-2019.pickle','rb'))
 	xrt = {}
@@ -175,6 +191,8 @@ exposures = np.array(["exp0{}".format(x) for x in table["expnum"].data])
 exposures = np.array([x[0] for x in np.split(exposures, exposures.shape[0]/112)])
 
 rescor = get_rescor(ifuslots, amps, def_wave)
+
+updated_rc = get_updated_rescor()
 
 meanmean = np.nanmedian(sky_spectra_orig[:,600:900], axis=1)
 biw = biweight_location(meanmean)
@@ -404,19 +422,19 @@ INTERPOLATE = True
 REBIN = False
 orig_rebin = []
 for i in order:#range(len(sky_spectra))[START:STOP]:
-	new_skysub = (sky_spectra[i] - new_sky_iter[i]*(1+rescor[(ifuslots[i], amps[i])]))
+	new_skysub = (sky_spectra[i] - new_sky_iter[i]*(1+rescor[(ifuslots[i], amps[i])])*(1+updated_rc[(ifuslots[i], amps[i])]))
 	if FILTER:
 		medfilt = boxes(new_skysub, flag[i], size=size)#newboxcar(new_skysub, flag[i], FILTERSIZE) #median_filter(new_skysub[flag[i]], size=medfilt_size)
 		medfilt[~np.isfinite(medfilt)] = 0
 		medianfilters.append(medfilt)
 		new_skysub -= medfilt
 	new_skysub[sky_spectra[i]==0] = 0
-	new_skysub_rel  = new_skysub/(new_sky_iter[i]*(1+rescor[(ifuslots[i], amps[i])]))
+	#new_skysub_rel  = new_skysub/(new_sky_iter[i]*(1+rescor[(ifuslots[i], amps[i])]))
 
-	primhdu = fits.PrimaryHDU(new_skysub_rel)
-	hdul = fits.HDUList([primhdu])
-	hdul.writeto("/work/05865/maja_n/stampede2/rescor/tmp/rc_"+shot+"_"+exp+"_"+multinames[i]+".fits", overwrite=True)
-	print("wrote to /work/05865/maja_n/stampede2/rescor/tmp/rc_"+shot+"_"+exp+"_"+multinames[i]+".fits")
+	#primhdu = fits.PrimaryHDU(new_skysub_rel)
+	#hdul = fits.HDUList([primhdu])
+	#hdul.writeto("/work/05865/maja_n/stampede2/rescor/tmp/rc_"+shot+"_"+exp+"_"+multinames[i]+".fits", overwrite=True)
+	#print("wrote to /work/05865/maja_n/stampede2/rescor/tmp/rc_"+shot+"_"+exp+"_"+multinames[i]+".fits")
 	new_skysub_int = []
 	#orig_int = []
 	#new_skysub_int_rel = []
@@ -452,6 +470,34 @@ print("second Skysub iter.shape : ", second_skysub_iter.shape)
 #relres = np.array(relres)
 #fiber_to_fiber_int, new_sky_iter_int = np.array(fiber_to_fiber_int), np.array(new_sky_iter_int)
 
+
+etwas = [np.concatenate([[1. for i in range(985)],[ 0. for k in range(1036-985)]]) for j in range(38)]
+for j in range(112-38):
+    etwas.append([1. for i in range(1036)])
+
+etwas = np.array(etwas)
+
+badamplist = {("024","LL"):np.zeros((112,1036)),
+             ("024","LU"):np.zeros((112,1036)),
+             ("024","RL"):np.zeros((112,1036)),
+             ("024","RU"):np.zeros((112,1036)),
+             ("083","RU"):np.zeros((112,1036)),
+             ("083","RL"):np.zeros((112,1036)),
+             ("046","RU"):np.zeros((112,1036)),
+             ("046","RL"):np.zeros((112,1036)),
+             ("092","LL"):np.zeros((112,1036)),
+             ("092","LU"):np.zeros((112,1036)),
+             ("092","RL"):np.zeros((112,1036)),
+             ("092","RU"):np.zeros((112,1036)),
+             ("095","RU"):np.zeros((112,1036)),
+             ("096","LL"):etwas,
+             ("106","RU"):np.zeros((112,1036))}
+
+SETTOZERO = False
+if SETTOZERO:
+	for key in badamplist.keys():
+		second_skysub_iter[(ifuslots[order]==key[0])&(amps[order]==key[1])] *= badamplist[key]
+
 SAVEASFITS = True
 if SAVEASFITS:
 	for i in range(len(order)):
@@ -460,7 +506,7 @@ if SAVEASFITS:
 		thisskysub = second_skysub_iter[i]
 		#thissky = new_sky_iter[idx]*(1+rescor[(ifuslots[idx],amps[idx])])
 		header = fits.Header()
-		header['wavelength_shift'] = wlshifts[idx]
+		header['wl_shift'] = wlshifts[idx]
 		hdu = fits.PrimaryHDU(thisskysub, header=header)
 		#hdu2 = fits.ImageHDU(thissky, name="sky_spectrum")
 		hdulist = fits.HDUList([hdu])
