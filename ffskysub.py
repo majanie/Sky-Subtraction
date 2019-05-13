@@ -223,6 +223,8 @@ for i in range(sky_spectra_iter.shape[0]):
 	except KeyError:
 		sky_spectra_iter[i] *= 0
 
+sky_spectra_iter[~np.isfinite(sky_spectra_iter)] = 0.
+
 binsize = int(sky_spectra_iter[flag].size/3000.)
 nwave_iter, smooth_iter = make_avg_spec(wavelength[flag], sky_spectra_iter[flag], binsize=binsize)
 #nwave, smooth = get_common_sky(sky_spectra, fiber_to_fiber, wavelength)
@@ -324,6 +326,8 @@ for i in range(sky_spectra_iter.shape[0]):
 		sky_spectra_iter[i] = sky_spectra_iter[i]/(xrt[(ifuslots[i], amps[i])](wavelength[i])*fiber_to_fiber[i]*ata_adj[i])
 	except KeyError:
 		sky_spectra_iter[i] *= 0
+
+sky_spectra_iter[~np.isfinite(sky_spectra_iter)] = 0.
 
 binsize = int(sky_spectra_iter[flag].size/3000.)
 print(binsize)
