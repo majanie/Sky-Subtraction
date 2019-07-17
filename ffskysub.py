@@ -28,7 +28,21 @@ import sys
 parser = argparse.ArgumentParser()
 parser.add_argument('-s','--shot',type=str,default='20190101v014',help='Shot')
 parser.add_argument('-e','--exp',type=str,default='exp02',help='Exposure')
+parser.add_argument('--saveaspickle', type=bool, default=False,help='Save as pickle file for building a cube?')
+parser.add_argument('--saveasfits', type=bool, default=True, help='save as fits file for any analysis')
+parser.add_argument('--plot', type=bool, default=False, help='save a plot of all residuals, original skysub, flagged sources and relative residuals?')
+parser.add_argument('--interpolate', type=bool, default=True, help='linear interpolation from 3470 to 5540 AA in the end')
+parser.add_argument('--rebin', type=bool, default=False, help='Max rebinning for rectification instead of interpolation')
 args = parser.parse_args(sys.argv[1:])
+
+print '\n SETTINGS \n'
+print 'shot, exp : ', args.shot, args.exp
+print 'save as fits : ', args.saveasfits
+print 'save as pickle : ', args.saveaspickle
+print 'plot : ', args.plot
+print 'interpolate : ', args.interpolate
+print 'rebinning : ', args.rebin
+print '\n'
 
 shot, exp = args.shot, args.exp
 
@@ -88,23 +102,25 @@ def get_rescor(ifuslots, amps, def_wave):
 			except IndexError:
 				rescor[(ifu, amp)] = np.zeros((112,1032))
 				pass
+	#print "rescor keys: ", rescor.keys()
 	return rescor
 
 def get_updated_rescor():
 	rescor_pattern = "/work/05865/maja_n/stampede2/rescor/rc_full_{}.fits"
 	ifus = np.unique(ifuslots)
-        aa = np.unique(amps)
+	aa = np.unique(amps)
 	rescor2 = {}
 	for ifu in ifus:
-                for amp in aa:
-                        try:
+		for amp in aa:
+			try:
 				gg = rescor_pattern.format(ifu+amp)
-                                rc = fits.open(gg)[0].data
-                                rescor2[(ifu, amp)] = np.array(rc)
-                        except IndexError:
-                                rescor2[(ifu, amp)] = np.zeros((112,1032))
-                                pass
-        return rescor2
+				rc = fits.open(gg)[0].data
+				rescor2[(ifu, amp)] = np.array(rc)
+			except Exception as e:
+				print e
+				rescor2[(ifu, amp)] = np.zeros((112,1032))
+				pass
+	return rescor2
 
 def get_xrt_new():
 	xrt_0, wave = pickle.load(open('xrt-2019.pickle','rb'))
@@ -131,13 +147,15 @@ def get_xrt_new():
 			here = here3
 			slope = (xrt_0[key][here[-1]+1] - xrt_0[key][here[0]-1])/float(len(here))
 			xrt_1 = np.concatenate([xrt_0[key][:here[0]], xrt_0[key][here[0]-1] + np.arange(len(here))*slope, xrt_0[key][here[-1]+1:]])
-			xrt[key] = interp1d(wave, gaussian_filter(xrt_1, sigma=SIGMA), fill_value='extrapolate')
+			xrt[key] = interp1d(wave, gaussian_filter(xrt_1, sigma=SIGMA), fill_value=(xrt_1[0], xrt_1[-1]),bounds_error=False)
 	else:
 		for key in xrt_0.keys():
-			xrt[key] = interp1d(wave, xrt_0[key], fill_value='extrapolate')
+			xrt[key] = interp1d(wave, xrt_0[key], fill_value=(xrt_0[key][0],xrt_0[key][-1]),bounds_error=False)
 	return xrt
 
 def boxes(array, flag, size):
+	array = np.where(array==0, np.nan, array)
+
 	boxes2 = np.split(np.arange(112), size[0])
 	boxes1 = np.split(np.arange(1032), size[1])
 	newarray = np.array(array.copy(), dtype=np.float64)/np.array(array.copy())
@@ -151,13 +169,64 @@ def boxes(array, flag, size):
 					medfilt[k,l] = medians[i,j]
 	return gaussian_filter(medfilt, sigma=(8,100))
 
-
+def get_xrt_time():
+		shotid = int(shot[:-4]+shot[-3:])
+		print shotid
+		if 20170000000 < shotid < 20170700000:
+			time = "201701"
+			print "ERROR: no 2017 amp2amps."
+			return 0
+		elif 20170700000 < shotid < 20180000000:
+			time = "201702"
+			print "Error: no 2017 amp2amps."
+			return 0
+		elif 20180000000 < shotid < 20180700000:
+			time = "2018"
+		elif 20180700000 < shotid < 20190000000:
+			time = "2018"
+		elif 20190000000 < shotid:
+			time = "2019"
+		pattern = "/work/05865/maja_n/stampede2/midratio/{}/{}.dat"
+		#xrt_0, wave = pickle.load(open('xrt-2019.pickle','rb'))
+		xrt = {}
+		weirdampslist = [[('035','LL'),590, 615],[('082','RL'),654,681],[('023','RL'), 349, 376],[('026','LL'), 95,142]]
+		#for amp in weirdampslist:
+		#		key, start, stop = amp
+		#		xrt_0[key] = np.concatenate([xrt_0[key][:start],np.interp(np.arange(stop-start),[0,stop-start],[xrt_0[key][start],xrt_0[key][stop]]),xrt_0[key][stop:]])
+		wave = def_wave
+		line = 3910
+		here1 = np.where((wave>line-10)&(wave<line+10))[0]
+		line = 4359
+		here2 = np.where((wave>line-10)&(wave<line+10))[0]
+		line = 5461
+		here3 = np.where((wave>line-10)&(wave<line+10))[0]
+		if SMOOTHATA:
+				for multi in multinames:
+						key = (multi[10:13], multi[18:20])
+						tmp = ascii.read(pattern.format(time, multi))
+						wl, xrt_0 = tmp["wl"], tmp["midratio"]
+						here = here1
+						slope = (xrt_0[here[-1]+1] - xrt_0[here[0]-1])/float(len(here))
+						xrt_1 = np.concatenate([xrt_0[:here[0]], xrt_0[here[0]-1] + np.arange(len(here))*slope, xrt_0[here[-1]+1:]])
+						here = here2
+						slope = (xrt_0[here[-1]+1] - xrt_0[here[0]-1])/float(len(here))
+						xrt_1 = np.concatenate([xrt_0[:here[0]], xrt_0[here[0]-1] + np.arange(len(here))*slope, xrt_0[here[-1]+1:]])
+						here = here3
+						slope = (xrt_0[here[-1]+1] - xrt_0[here[0]-1])/float(len(here))
+						xrt_1 = np.concatenate([xrt_0[:here[0]], xrt_0[here[0]-1] + np.arange(len(here))*slope, xrt_0[here[-1]+1:]])
+						xrt_1 = np.interp(np.arange(len(xrt_1)), np.arange(len(xrt_1))[np.isfinite(xrt_1)], xrt_1[np.isfinite(xrt_1)])
+						#print xrt_1[~np.isfinite(xrt_1)]
+						xrt[key] = interp1d(wave, gaussian_filter(xrt_1, sigma=SIGMA/2.), fill_value=(xrt_1[0],xrt_1[-1]),bounds_error=False)
+		else:
+				for key in xrt_0.keys():
+						xrt[key] = interp1d(wave, xrt_0[key], fill_value=(xrt_0[key][0],xrt_0[key][-1]),bounds_error=False)
+		return xrt
 # SWITCHES
 
-SIGMA = 4
+SIGMA = 4.
 SMOOTHATA = SIGMA != 0
 THRESHOLD = 1.03
-LOWER = 0.96
+LOWER = 0.97
 ADJUSTMENT = THRESHOLD == 0
 FILTER = True
 KAPPA = 2.7
@@ -213,7 +282,7 @@ multinames = multinames[exposures==exp]
 
 flag = np.array(np.split(flag, flag.shape[0]/112))[exposures==exp]
 
-xrt = get_xrt_new()
+xrt = get_xrt_time() # new()
 
 sky_spectra_iter = sky_spectra.copy()
 print('sky_spectra_iter.shape ; ', sky_spectra_iter.shape)
@@ -321,6 +390,17 @@ flag = np.array(np.split(flag, flag.shape[0]/112))#[exposures==exp]
 sky_spectra_iter = sky_spectra.copy()
 sky_spectra_iter.shape
 
+if False:
+	thishere = np.where((ifuslots=="025")&(amps=="LL"))[0][0]
+	csmtmp = csm_iter(wavelength[thishere])
+	csmtmp[sky_spectra[thishere]==0] = 0.
+
+	flaghere = flag[thishere]
+	xrt_025 = np.nanmedian([np.interp(def_wave, x, y, left=y[0], right=y[-1]) for x, y in 
+					 zip(wavelength[thishere][flaghere],sky_spectra[thishere][flaghere] 
+						 / (csmtmp[flaghere]*fiber_to_fiber[thishere][flaghere]))], axis=0) 
+	xrt[("025", "LL")] = interp1d(def_wave, gaussian_filter(xrt_025, sigma=4), fill_value=(xrt_025[0],xrt_025[-1]), bounds_error=False)
+
 for i in range(sky_spectra_iter.shape[0]):
 	try:
 		sky_spectra_iter[i] = sky_spectra_iter[i]/(xrt[(ifuslots[i], amps[i])](wavelength[i])*fiber_to_fiber[i]*ata_adj[i])
@@ -329,7 +409,7 @@ for i in range(sky_spectra_iter.shape[0]):
 
 sky_spectra_iter[~np.isfinite(sky_spectra_iter)] = 0.
 
-binsize = int(sky_spectra_iter[flag].size/3000.)
+binsize = int(sky_spectra_iter[flag].size/10000.)
 print(binsize)
 nwave_iter, smooth_iter = make_avg_spec(wavelength[flag], sky_spectra_iter[flag], binsize=binsize)
 #nwave, smooth = get_common_sky(sky_spectra, fiber_to_fiber, wavelength)
@@ -371,6 +451,8 @@ for i in range(new_sky_iter.shape[0]):
 			this_mid = popt[1]
 			diff = this_mid - csm_mid
 			print diff
+			if ~np.isfinite(diff):
+				diff = 0.
 			wlshifts.append(diff)
 		except Exception as e:
 			wlshifts.append(0.0)
@@ -401,13 +483,16 @@ for i in range(new_sky_iter.shape[0]):
 		new_sky_iter[i] *= 0
 triplesave = np.array(triplesave)
 wlshifts = np.array(wlshifts)
-ascii.write(Table({'ifuslot':ifuslots,'amp':amps, ':350':triplesave[:,0], '350:700':triplesave[:,1], '700:':triplesave[:,2]}), '/work/05865/maja_n/stampede2/a2a_adj/{}-{}-a2a_adj.dat'.format(shot, exp), overwrite=True)
-print('wrote /work/05865/maja_n/stampede2/a2a_adj/{}-{}-a2a_adj.dat'.format(shot, exp))
+try:
+	ascii.write(Table({'ifuslot':ifuslots,'amp':amps, ':350':triplesave[:,0], '350:700':triplesave[:,1], '700:':triplesave[:,2]}), '/work/05865/maja_n/stampede2/a2a_adj/{}-{}-a2a_adj.dat'.format(shot, exp), overwrite=True)
+	print('wrote /work/05865/maja_n/stampede2/a2a_adj/{}-{}-a2a_adj.dat'.format(shot, exp))
+except ValueError as e:
+	print e
 final_adj = np.array(final_adj)
 
 for i in np.where((ifuslots=='013'))[0]:
-    for j in range(112):
-        new_sky_iter[i,j] = gaussian_filter(new_sky_iter[i,j], sigma=0.3*2)
+	for j in range(112):
+		new_sky_iter[i,j] = gaussian_filter(new_sky_iter[i,j], sigma=0.3*2)
 
 #for i in np.where((ifuslots=="074")&((amps=="RL") or (amps=="LL"))[0]:
 
@@ -422,8 +507,8 @@ N = len(sky_spectra)
 size = (8,8)
 
 relres = []
-INTERPOLATE = True
-REBIN = False
+INTERPOLATE = args.interpolate
+REBIN = args.rebin
 orig_rebin = []
 for i in order:#range(len(sky_spectra))[START:STOP]:
 	new_skysub = (sky_spectra[i] - new_sky_iter[i]*(1+rescor[(ifuslots[i], amps[i])])*(1+updated_rc[(ifuslots[i], amps[i])]))
@@ -433,12 +518,12 @@ for i in order:#range(len(sky_spectra))[START:STOP]:
 		medianfilters.append(medfilt)
 		new_skysub -= medfilt
 	new_skysub[sky_spectra[i]==0] = 0
-	#new_skysub_rel  = new_skysub/(new_sky_iter[i]*(1+rescor[(ifuslots[i], amps[i])]))
+	new_skysub_rel  = new_skysub/(new_sky_iter[i]*(1+rescor[(ifuslots[i], amps[i])]))
 
-	#primhdu = fits.PrimaryHDU(new_skysub_rel)
-	#hdul = fits.HDUList([primhdu])
-	#hdul.writeto("/work/05865/maja_n/stampede2/rescor/tmp/rc_"+shot+"_"+exp+"_"+multinames[i]+".fits", overwrite=True)
-	#print("wrote to /work/05865/maja_n/stampede2/rescor/tmp/rc_"+shot+"_"+exp+"_"+multinames[i]+".fits")
+	primhdu = fits.PrimaryHDU(new_skysub_rel)
+	hdul = fits.HDUList([primhdu])
+	hdul.writeto("/work/05865/maja_n/stampede2/rescor/tmp/rc_"+shot+"_"+exp+"_"+multinames[i]+".fits", overwrite=True)
+	print("wrote to /work/05865/maja_n/stampede2/rescor/tmp/rc_"+shot+"_"+exp+"_"+multinames[i]+".fits")
 	new_skysub_int = []
 	#orig_int = []
 	#new_skysub_int_rel = []
@@ -448,7 +533,7 @@ for i in order:#range(len(sky_spectra))[START:STOP]:
 		for j in range(112):
  			dw = np.diff(wavelength[i,j])
  			dw = np.hstack((dw[0], dw))
-			#dw = 1
+			dw = 1.
 			new_skysub_int.append(np.interp(def_wave, wavelength[i,j], new_skysub[j]/dw, left=0.0, right=0.0))
 			#new_skysub_int_rel.append(np.interp(def_wave, wavelength[i,j], new_skysub_rel[j]/dw, left=0.0, right=0.0))
 			#f2f_int.append(np.interp(def_wave, wavelength[i,j], fiber_to_fiber[i,j], left=1., right=1.))
@@ -477,32 +562,32 @@ print("second Skysub iter.shape : ", second_skysub_iter.shape)
 
 etwas = [np.concatenate([[1. for i in range(985)],[ 0. for k in range(1036-985)]]) for j in range(38)]
 for j in range(112-38):
-    etwas.append([1. for i in range(1036)])
+	etwas.append([1. for i in range(1036)])
 
 etwas = np.array(etwas)
 
 badamplist = {("024","LL"):np.zeros((112,1036)),
-             ("024","LU"):np.zeros((112,1036)),
-             ("024","RL"):np.zeros((112,1036)),
-             ("024","RU"):np.zeros((112,1036)),
-             ("083","RU"):np.zeros((112,1036)),
-             ("083","RL"):np.zeros((112,1036)),
-             ("046","RU"):np.zeros((112,1036)),
-             ("046","RL"):np.zeros((112,1036)),
-             ("092","LL"):np.zeros((112,1036)),
-             ("092","LU"):np.zeros((112,1036)),
-             ("092","RL"):np.zeros((112,1036)),
-             ("092","RU"):np.zeros((112,1036)),
-             ("095","RU"):np.zeros((112,1036)),
-             ("096","LL"):etwas,
-             ("106","RU"):np.zeros((112,1036))}
+			 ("024","LU"):np.zeros((112,1036)),
+			 ("024","RL"):np.zeros((112,1036)),
+			 ("024","RU"):np.zeros((112,1036)),
+			 ("083","RU"):np.zeros((112,1036)),
+			 ("083","RL"):np.zeros((112,1036)),
+			 ("046","RU"):np.zeros((112,1036)),
+			 ("046","RL"):np.zeros((112,1036)),
+			 ("092","LL"):np.zeros((112,1036)),
+			 ("092","LU"):np.zeros((112,1036)),
+			 ("092","RL"):np.zeros((112,1036)),
+			 ("092","RU"):np.zeros((112,1036)),
+			 ("095","RU"):np.zeros((112,1036)),
+			 ("096","LL"):etwas,
+			 ("106","RU"):np.zeros((112,1036))}
 
 SETTOZERO = False
 if SETTOZERO:
 	for key in badamplist.keys():
 		second_skysub_iter[(ifuslots[order]==key[0])&(amps[order]==key[1])] *= badamplist[key]
 
-SAVEASFITS = True
+SAVEASFITS = args.saveasfits
 if SAVEASFITS:
 	for i in range(len(order)):
 		idx = order[i]
@@ -510,7 +595,11 @@ if SAVEASFITS:
 		thisskysub = second_skysub_iter[i]
 		#thissky = new_sky_iter[idx]*(1+rescor[(ifuslots[idx],amps[idx])])
 		header = fits.Header()
-		header['wl_shift'] = wlshifts[idx]
+		try:
+			header['wl_shift'] = wlshifts[idx]
+		except Exception as e:
+			print e
+			header["wl_shift"] = 0.
 		hdu = fits.PrimaryHDU(thisskysub, header=header)
 		#hdu2 = fits.ImageHDU(thissky, name="sky_spectrum")
 		hdulist = fits.HDUList([hdu])
@@ -524,7 +613,7 @@ tickarray = np.array(np.split((np.arange(flag.size)), flag.shape[0]))[START:STOP
 
 ampticks = np.arange(N)*112
 
-PLOT = False
+PLOT = args.plot
 PCAPLOT = False
 if PLOT:
 	plt.figure(figsize=(25,200))
@@ -540,8 +629,8 @@ if PLOT:
 #	plt.colorbar();
 	plt.subplot(133)
 	plt.title("original - xskysub")
-	#plt.imshow(np.concatenate(relres), vmin=-0.02, vmax=0.02, interpolation="none", aspect="auto", cmap="Greys_r");
-	plt.imshow(np.concatenate(orig_rebin-second_skysub_iter), vmin=-10, vmax=10, interpolation="none", aspect="auto", cmap="Greys_r");
+	plt.imshow(np.concatenate(relres), vmin=-0.02, vmax=0.02, interpolation="none", aspect="auto", cmap="Greys_r");
+	#plt.imshow(np.concatenate(orig_rebin-second_skysub_iter), vmin=-10, vmax=10, interpolation="none", aspect="auto", cmap="Greys_r");
 	plt.yticks(ampticks, [ifuslots[i]+amps[i] for i in order], rotation=90);
 #	plt.colorbar(orientation="horizontal");""""""
 	#plt.savefig('../lsspresent/test-fullframe-{}-{}-own-smooth-skip-shift.png'.format(shot, exp), bbox_inches='tight')
@@ -604,7 +693,7 @@ if PCAPLOT:
 #	plt.colorbar(orientation="horizontal");""""""
 	plt.savefig('../lsspresent/test-fullframe-{}-{}-own-smooth-skip-pca.png'.format(shot, exp), bbox_inches='tight')
 
-SAVEASPICKLE = False
+SAVEASPICKLE = args.saveaspickle
 if SAVEASPICKLE:
 	for j,i in enumerate(order):
 		thissubtracted = second_skysub_iter[j]
