@@ -1,7 +1,7 @@
 from scipy.optimize import curve_fit
-from srebin import linlin
+#from srebin import linlin
 import matplotlib
-matplotlib.use('agg')
+matplotlib.use('agg') 
 import matplotlib.pylab as pylab
 params = {'legend.fontsize':'x-large',
 	'figure.figsize':(15,5),
@@ -13,7 +13,8 @@ pylab.rcParams.update(params)
 from astropy.table import Table
 from astropy.stats import biweight_location, biweight_scale
 from astropy.io import fits, ascii
-from scipy.ndimage.filters import gaussian_filter
+from scipy.ndimage.filters import gaussian_filter #, median_filter
+from scipy.ndimage import map_coordinates, median_filter
 from fiber_utils import bspline_x0
 from scipy.interpolate import interp1d
 import tables as tb
@@ -167,7 +168,108 @@ def boxes(array, flag, size):
 			for k in box1:
 				for l in box2:
 					medfilt[k,l] = medians[i,j]
-	return gaussian_filter(medfilt, sigma=(8,100))
+	if True:
+		return gaussian_filter(medfilt, sigma=(8,50))
+
+	#print medians
+	#print medians.shape
+	coordgrid = np.array([[[float(i)/boxes2[0].shape[0]-0.5,float(j)/boxes1[0].shape[0]-0.5] for j in range(1032)] for i in range(112)])
+	#print coordgrid.shape
+	i#coordgrid = np.transpose(coordgrid, [2, 0, 1])
+	#for i in range(112):
+#		if (float(j)/boxes1[0].shape[0]-0.5>=0)&(float(j)/boxes1[0].shape[0]-0.5<=medians.shape[1]-1)
+#			&(float(i)/boxes2[0].shape[0]-0.5 >= 0) & (float(i)/boxes2[0].shape[0]-0.5 <= medians.shape[0]-1):
+#			medfilt[i,j] = map_coordinates(medians, [[float(i)/boxes2[0].shape[0]-0.5 for j in range(1032)], [float(j)/boxes1[0].shape[0]-0.5 for j in range(1032)]], mode="nearest")
+#		elif (float(i)/boxes2[0].shape[0]-0.5 < 0): 
+#			medfilt[i,j] = map_coordinates(medians, [[float(i)/boxes2[0].shape[0]-0.5 for j in range(1032)], [float(j)/boxes1[0].shape[0]-0.5 for j in range(1032)]], mode="nearest")
+	medfilt = map_coordinates(medians, np.transpose(coordgrid, [2, 0, 1]))
+	#print medfilt.shape
+
+	true1 = coordgrid[:,:,0] < 0
+	true2 = coordgrid[:,:,1] < 0
+	true3 = coordgrid[:,:,0] > medians.shape[0]-1
+	true4 = coordgrid[:,:,1] > medians.shape[1]-1
+	#print true1.shape, true2.shape, true3.shape, true4.shape
+
+	medfilt[ true1 & true2 ] = medians[0,0]
+	medfilt[ true1 & true4 ] = medians[0,-1]
+	medfilt[ true3 & true2 ] = medians[-1,0]
+	medfilt[ true3 & true4 ] = medians[-1,-1]
+	
+	idxarray = np.arange(0,medians.shape[1]-1+1/1032., size[1]/1032.)
+	idxarray2 = np.arange(0, medians.shape[0]-1.+1/1032., size[0]/112.)
+	
+	here = true1 & ~true2 & ~true4
+	for i in range(112):
+		if len(here[i][here[i]])==0:
+			continue
+		medfilt[i][here[i]] += map_coordinates(medians, [[0 for i in range(len(idxarray))],idxarray])
+	
+	here = true3 & ~true2 & ~true4
+	for i in range(112):
+		if len(here[i][here[i]])==0:
+			continue
+		medfilt[i][here[i]] += map_coordinates(medians, [[medians.shape[0]-1 for i in range(len(idxarray))], idxarray])
+	
+	here = true2 & ~true1 & ~true3
+	here = here.T
+	for i in range(1032):
+		if len(here[i][here[i]])==0:
+			continue
+		tmp = np.zeros(medfilt.shape).T
+		#(medfilt.T[i][here[i]]).T += map_coordinates(medians, [idxarray2, [0 for i in range(len(idxarray2))]])
+		tmp[i][here[i]] += map_coordinates(medians, [idxarray2, [0 for i in range(len(idxarray2))]])	
+		medfilt += tmp.T
+	
+	here = true4 & ~true1 & ~true3
+	here = here.T
+	for i in range(1032):
+		if len(here[i][here[i]])==0:
+			continue
+		tmp = np.zeros(medfilt.shape).T
+		tmp[i][here[i]] += map_coordinates(medians, [idxarray2, [medians.shape[1]-1 for i in range(len(idxarray2))]])
+		#(medfilt.T[i][here[i]]).T += map_coordinates(medians, [idxarray2, [medians.shape[1]-1 for i in range(len(idxarray2))]])
+		medfilt += tmp.T
+	
+	#medfilt[ true1 & ~true2 & ~true4] += map_coordinates(medians, [[0 for i in range(len(idxarray))],idxarray])
+	#medfilt[ true3 & ~true2 & ~true4] += map_coordinates(medians, [[medians.shape[0]-1 for i in range(len(idxarray))], idxarray])
+	#medfilt[ true2 & ~true1 & ~true3] += map_coordinates(medians, [idxarray2, [0 for i in range(len(idxarray2))]])
+	#medfilt[ true4 & ~true1 & ~true3] += map_coordinates(medians, [idxarray2, [medians.shape[1]-1 for i in range(len(idxarray2))]])
+	if False:
+		return gaussian_filter(medfilt, sigma=(8,100))
+	else:
+		return medfilt
+
+def boxcar(array, flag, size):
+	array_collapsed = array[flag]
+	array_collapsed[array_collapsed==0.0] = np.nan
+	medfilt = median_filter(array_collapsed, size=size)
+	#print medfilt
+	#print "nan: ", medfilt[np.isnan(medfilt)].size/float(medfilt.size)
+
+	if len(flag[flag])==0:
+		return np.zeros(array.shape)
+
+	j = -1
+	medians = []
+	for i in range(len(flag)):
+		if flag[i]:
+			j+=1
+			medians.append(medfilt[j])
+		elif j==-1:
+			medians.append(medfilt[0])
+		else: 
+			try:
+				medians.append(medfilt[j])
+			except Exception as e:
+				print e
+				medians.append(np.zeros(1032))
+	medians = np.array(medians)
+	#print "medians.shape: ", medians.shape
+
+	return medians
+
+
 
 def get_xrt_time():
 		shotid = int(shot[:-4]+shot[-3:])
@@ -221,6 +323,60 @@ def get_xrt_time():
 				for key in xrt_0.keys():
 						xrt[key] = interp1d(wave, xrt_0[key], fill_value=(xrt_0[key][0],xrt_0[key][-1]),bounds_error=False)
 		return xrt
+
+def get_closest_date(inpath): 
+	pp = np.sort(glob.glob(inpath))
+	date = int(shot[:-4])
+	dates_inpath = np.array([int(x.split("/")[-1]) for x in pp])
+	date_diff = date - dates_inpath
+	out_date_idx = np.where(date_diff>=0)[0][-1]
+	out_date_path = pp[out_date_idx]
+	return out_date_path
+
+
+def get_xrt_time_new():
+	inpath = "/work/05865/maja_n/stampede2/midratio/*"
+	outpath = get_closest_date(inpath)
+	pattern = outpath+"/{}.dat"
+	xrt = {}
+	#weirdampslist = [[('035','LL'),590, 615],[('082','RL'),654,681],[('023','RL'), 349, 376],[('026','LL'), 95,142]]
+	#for amp in weirdampslist:
+	#		key, start, stop = amp
+	#		xrt_0[key] = np.concatenate([xrt_0[key][:start],np.interp(np.arange(stop-start),[0,stop-start],[xrt_0[key][start],xrt_0[key][stop]]),xrt_0[key][stop:]])
+	wave = def_wave
+	line = 3910
+	here1 = np.where((wave>line-10)&(wave<line+10))[0]
+	line = 4359
+	here2 = np.where((wave>line-10)&(wave<line+10))[0]
+	line = 5461
+	here3 = np.where((wave>line-10)&(wave<line+10))[0]
+	if SMOOTHATA:
+			for multi in multinames:
+					key = (multi[10:13], multi[18:20])
+					tmp = ascii.read(pattern.format( multi))
+					wl, xrt_0 = tmp["wl"], tmp["midratio"]
+					here = here1
+					slope = (xrt_0[here[-1]+1] - xrt_0[here[0]-1])/float(len(here))
+					xrt_1 = np.concatenate([xrt_0[:here[0]], xrt_0[here[0]-1] + np.arange(len(here))*slope, xrt_0[here[-1]+1:]])
+					here = here2
+					slope = (xrt_0[here[-1]+1] - xrt_0[here[0]-1])/float(len(here))
+					xrt_1 = np.concatenate([xrt_0[:here[0]], xrt_0[here[0]-1] + np.arange(len(here))*slope, xrt_0[here[-1]+1:]])
+					here = here3
+					slope = (xrt_0[here[-1]+1] - xrt_0[here[0]-1])/float(len(here))
+					xrt_1 = np.concatenate([xrt_0[:here[0]], xrt_0[here[0]-1] + np.arange(len(here))*slope, xrt_0[here[-1]+1:]])
+					xrt_1 = np.interp(np.arange(len(xrt_1)), np.arange(len(xrt_1))[np.isfinite(xrt_1)], xrt_1[np.isfinite(xrt_1)])
+					#print xrt_1[~np.isfinite(xrt_1)]
+					xrt[key] = interp1d(wave, gaussian_filter(xrt_1, sigma=SIGMA/2.), fill_value=(xrt_1[0],xrt_1[-1]),bounds_error=False)
+	else:
+			for key in xrt_0.keys():
+					xrt[key] = interp1d(wave, xrt_0[key], fill_value=(xrt_0[key][0],xrt_0[key][-1]),bounds_error=False)
+	return xrt
+
+
+#inpath = "/work/05865/maja_n/stampede2/midratio/*"
+#print(get_closest_date(inpath))
+#sys.exit(1)
+
 # SWITCHES
 
 SIGMA = 4.
@@ -230,34 +386,73 @@ LOWER = 0.97
 ADJUSTMENT = THRESHOLD == 0
 FILTER = True
 KAPPA = 2.7
+FROMH5 = False
 
 def_wave = np.arange(3470., 5542., 2.)
-filename = '/work/03946/hetdex/hdr1/reduction/data/{}.h5'.format(shot)
-fileh = tb.open_file(filename, 'r')
 
-table =  Table(fileh.root.Data.Fibers.read())
+if FROMH5:
+	filename = '/work/03946/hetdex/hdr1/reduction/data/{}.h5'.format(shot)
+	fileh = tb.open_file(filename, 'r')
 
-expnum = table["expnum"].data
-sky_spectra_orig = table["spectrum"].data
-sky_spectra_orig = np.array(sky_spectra_orig, dtype=np.float64)
-sky_subtracted_orig = table["sky_subtracted"].data
-sky_subtracted_orig = np.array(sky_subtracted_orig, dtype=np.float64)#[expnum==1]
-fiber_to_fiber_orig = table["fiber_to_fiber"].data
-fiber_to_fiber_orig = np.array(fiber_to_fiber_orig, dtype=np.float64)#[expnum==1]
-wavelength_orig = table["wavelength"].data
-wavelength_orig = np.array(wavelength_orig, dtype=np.float64)#[expnum==1]
+	table =  Table(fileh.root.Data.Fibers.read())
 
-ifuslots = table["ifuslot"].data
-ifuslots = np.array([x[0] for x in np.split(ifuslots, ifuslots.shape[0]/112)])
+	expnum = table["expnum"].data
+	sky_spectra_orig = table["spectrum"].data
+	sky_spectra_orig = np.array(sky_spectra_orig, dtype=np.float64)
+	sky_subtracted_orig = table["sky_subtracted"].data
+	sky_subtracted_orig = np.array(sky_subtracted_orig, dtype=np.float64)#[expnum==1]
+	fiber_to_fiber_orig = table["fiber_to_fiber"].data
+	fiber_to_fiber_orig = np.array(fiber_to_fiber_orig, dtype=np.float64)#[expnum==1]
+	wavelength_orig = table["wavelength"].data
+	wavelength_orig = np.array(wavelength_orig, dtype=np.float64)#[expnum==1]
 
-multinames = table['multiframe'].data
-multinames = np.array([x[0] for x in np.split(multinames,multinames.shape[0]/112)])
+	ifuslots = table["ifuslot"].data
+	ifuslots = np.array([x[0] for x in np.split(ifuslots, ifuslots.shape[0]/112)])
 
-amps = table["amp"].data
-amps = np.array([x[0] for x in np.split(amps, amps.shape[0]/112)])
+	multinames = table['multiframe'].data
+	multinames = np.array([x[0] for x in np.split(multinames,multinames.shape[0]/112)])
 
-exposures = np.array(["exp0{}".format(x) for x in table["expnum"].data])
-exposures = np.array([x[0] for x in np.split(exposures, exposures.shape[0]/112)])
+	amps = table["amp"].data
+	amps = np.array([x[0] for x in np.split(amps, amps.shape[0]/112)])
+
+	exposures = np.array(["exp0{}".format(x) for x in table["expnum"].data])
+	exposures = np.array([x[0] for x in np.split(exposures, exposures.shape[0]/112)])
+
+else: # get it from the multifits files
+	pattern = "/work/03946/hetdex/maverick/red1/reductions/{}/virus/virus0000{}/{}/virus/multi_???_???_???_??.fits"
+	multis = glob.glob(pattern.format(shot[:-4], shot[-3:], exp))
+	multis = np.sort(multis)
+	if len(multis) == 0:
+		print("Error: no fits files found in "+pattern.format(shot[:-4], shot[-3:], exp))
+		sys.exit(0)
+	sky_spectra_orig, sky_subtracted_orig, fiber_to_fiber_orig, wavelength_orig, ifuslots, multinames, amps, exposures = [], [], [], [], [], [], [], []
+
+	for fin in multis: 
+		multiname = fin.split("/")[-1][:-5]
+		ifu, amp = multiname[10:13], multiname[18:20]
+		tmp = fits.open(fin)
+		sky_spectra_orig.append(tmp["spectrum"].data)
+		sky_subtracted_orig.append(tmp["sky_subtracted"].data)
+		fiber_to_fiber_orig.append(tmp["fiber_to_fiber"].data)
+		wavelength_orig.append(tmp["wavelength"].data)
+		ifuslots.append(ifu)
+		amps.append(amp)
+		exposures.append(exp)
+		multinames.append(multiname)
+	
+	sky_spectra_orig = np.array(sky_spectra_orig, dtype=np.float64)
+	sky_subtracted_orig = np.array(sky_subtracted_orig, dtype=np.float64)
+	fiber_to_fiber_orig = np.array(fiber_to_fiber_orig, dtype=np.float64)
+	wavelength_orig = np.array(wavelength_orig, dtype=np.float64)
+
+	sky_spectra_orig = np.concatenate(sky_spectra_orig)
+	sky_subtracted_orig = np.concatenate(sky_subtracted_orig)
+	fiber_to_fiber_orig = np.concatenate(fiber_to_fiber_orig)
+	wavelength_orig = np.concatenate(wavelength_orig)
+
+	ifuslots, amps, exposures, multinames = np.array(ifuslots), np.array(amps), np.array(exposures), np.array(multinames)
+	
+	print sky_spectra_orig.shape
 
 rescor = get_rescor(ifuslots, amps, def_wave)
 
@@ -282,7 +477,7 @@ multinames = multinames[exposures==exp]
 
 flag = np.array(np.split(flag, flag.shape[0]/112))[exposures==exp]
 
-xrt = get_xrt_time() # new()
+xrt = get_xrt_time_new() #get_xrt_time() # new()
 
 sky_spectra_iter = sky_spectra.copy()
 print('sky_spectra_iter.shape ; ', sky_spectra_iter.shape)
@@ -324,16 +519,16 @@ START, STOP = 0,N
 
 for i in range(len(sky_spectra))[START:STOP]:
 	new_skysub = sky_spectra[i] - new_sky_iter[i]*(1+rescor[(ifuslots[i], amps[i])])
-	if FILTER:
-		medfilt = boxes(new_skysub, np.ones((new_skysub.shape[0],), dtype=bool), size=(4,4))
+	if  FILTER:
+		medfilt = boxes(new_skysub, np.ones((new_skysub.shape[0],), dtype=bool), size=(4,4)) #boxcar(new_skysub, np.ones((new_skysub.shape[0],), dtype=bool), size=(4,4))# 
 		medianfilters.append(medfilt)
 		new_skysub -= medfilt
 	new_skysub_int = []
 	new_skysub[sky_spectra[i]==0] = 0
 	for j in range(112):
- 		dw = np.diff(wavelength[i,j])
- 		dw = np.hstack((dw[0], dw))
-		#dw = 1
+ 		#dw = np.diff(wavelength[i,j])
+ 		#dw = np.hstack((dw[0], dw))
+		dw = 1
 		new_skysub_int.append(np.interp(def_wave, wavelength[i,j], new_skysub[j]/dw, left=0.0, right=0.0))
 	xskysub_iter.append(new_skysub_int)
 	#if i%10==0:
@@ -510,31 +705,37 @@ relres = []
 INTERPOLATE = args.interpolate
 REBIN = args.rebin
 orig_rebin = []
-for i in order:#range(len(sky_spectra))[START:STOP]:
-	new_skysub = (sky_spectra[i] - new_sky_iter[i]*(1+rescor[(ifuslots[i], amps[i])])*(1+updated_rc[(ifuslots[i], amps[i])]))
+for counter, i in enumerate(order):#range(len(sky_spectra))[START:STOP]:
+	new_skysub = (sky_spectra[i] - new_sky_iter[i]*(1+rescor[(ifuslots[i], amps[i])])) #*(1+updated_rc[(ifuslots[i], amps[i])])) #CHANGE THIS!!!
 	if FILTER:
-		medfilt = boxes(new_skysub, flag[i], size=size)#newboxcar(new_skysub, flag[i], FILTERSIZE) #median_filter(new_skysub[flag[i]], size=medfilt_size)
+		medfilt = boxes(new_skysub, flag[i], size=size) #boxcar(new_skysub, flag[i], size=(14, 50))#newboxcar(new_skysub, flag[i], FILTERSIZE) #median_filter(new_skysub[flag[i]], size=medfilt_size)
 		medfilt[~np.isfinite(medfilt)] = 0
 		medianfilters.append(medfilt)
 		new_skysub -= medfilt
 	new_skysub[sky_spectra[i]==0] = 0
 	new_skysub_rel  = new_skysub/(new_sky_iter[i]*(1+rescor[(ifuslots[i], amps[i])]))
-
-	primhdu = fits.PrimaryHDU(new_skysub_rel)
-	hdul = fits.HDUList([primhdu])
-	hdul.writeto("/work/05865/maja_n/stampede2/rescor/tmp/rc_"+shot+"_"+exp+"_"+multinames[i]+".fits", overwrite=True)
-	print("wrote to /work/05865/maja_n/stampede2/rescor/tmp/rc_"+shot+"_"+exp+"_"+multinames[i]+".fits")
+	
+	#primhdu = fits.PrimaryHDU(new_skysub_rel)
+	#hdul = fits.HDUList([primhdu])
+	#hdul.writeto("/work/05865/maja_n/stampede2/rescor/tmp/rc_"+shot+"_"+exp+"_"+multinames[i]+".fits", overwrite=True)
+	#print("wrote to /work/05865/maja_n/stampede2/rescor/tmp/rc_"+shot+"_"+exp+"_"+multinames[i]+".fits")
 	new_skysub_int = []
-	#orig_int = []
+	orig_int = []
 	#new_skysub_int_rel = []
 	#f2f_int, nsi_int = [], []
 	#new_skysub_rel[sky_spectra[i]==0] = 0
 	if INTERPOLATE:
 		for j in range(112):
- 			dw = np.diff(wavelength[i,j])
- 			dw = np.hstack((dw[0], dw))
-			dw = 1.
-			new_skysub_int.append(np.interp(def_wave, wavelength[i,j], new_skysub[j]/dw, left=0.0, right=0.0))
+ 			#dw = np.diff(wavelength[i,j])
+ 			#dw = np.hstack((dw[0], dw))
+			try:
+				new_skysub_int.append(np.interp(def_wave, wavelength[i,j][new_skysub[j]!=0], new_skysub[j][new_skysub[j]!=0], left=0.0, right=0.0))
+			except ValueError:
+				new_skysub_int.append(np.zeros(def_wave.shape))
+			try:
+				orig_int.append(np.interp(def_wave, wavelength[i,j][sky_subtracted[i,j]!=0], sky_subtracted[i,j][sky_subtracted[i,j]!=0], left=0.0, right=0.0))
+			except ValueError:
+				orig_int.append(np.zeros(def_wave.shape))
 			#new_skysub_int_rel.append(np.interp(def_wave, wavelength[i,j], new_skysub_rel[j]/dw, left=0.0, right=0.0))
 			#f2f_int.append(np.interp(def_wave, wavelength[i,j], fiber_to_fiber[i,j], left=1., right=1.))
 			#nsi_int.append(np.interp(def_wave, wavelength[i,j], new_sky_iter[i,j]/dw, left=0.0, right=0.0))		
@@ -550,11 +751,11 @@ for i in order:#range(len(sky_spectra))[START:STOP]:
 	#relres.append(new_skysub_int_rel)
 	#fiber_to_fiber_int.append(f2f_int)
 	#new_sky_iter_int.append(nsi_int)
-	#orig_rebin.append(orig_int)
+	orig_rebin.append(orig_int)
 
-	print( "done {} / {} ".format(i, N))
+	print( "done {} / {} ".format(counter, N))
 second_skysub_iter = np.array(second_skysub_iter)
-#orig_rebin = np.array(orig_rebin)
+orig_rebin = np.array(orig_rebin)
 print("second Skysub iter.shape : ", second_skysub_iter.shape)
 #relres = np.array(relres)
 #fiber_to_fiber_int, new_sky_iter_int = np.array(fiber_to_fiber_int), np.array(new_sky_iter_int)
@@ -566,7 +767,26 @@ for j in range(112-38):
 
 etwas = np.array(etwas)
 
-badamplist = {("024","LL"):np.zeros((112,1036)),
+badamplist = {#("024","LL"):np.zeros((112,1036)),
+               #          ("024","LU"):np.zeros((112,1036)),
+               #          ("024","RL"):np.zeros((112,1036)),
+               #          ("024","RU"):np.zeros((112,1036)),
+               #          ("032","LU"):np.zeros((112,1036)),
+               #          ("032","LL"):np.zeros((112,1036)),
+               #          ("083","RU"):np.zeros((112,1036)),
+               #          ("083","RL"):np.zeros((112,1036)),
+               #          ("046","RU"):np.zeros((112,1036)),
+                         ("046","RL"):np.zeros((112,1036)),
+               #          ("092","LL"):np.zeros((112,1036)),
+               #          ("092","LU"):np.zeros((112,1036)),
+               #          ("092","RL"):np.zeros((112,1036)),
+               #          ("092","RU"):np.zeros((112,1036)),
+               #          ("095","RU"):np.zeros((112,1036)),
+               #          ("095","RL"):np.zeros((112,1036)),
+               #          ("096","LL"):etwas,
+                         ("106","RU"):np.zeros((112,1036))}
+
+"""badamplist = {("024","LL"):np.zeros((112,1036)),
 			 ("024","LU"):np.zeros((112,1036)),
 			 ("024","RL"):np.zeros((112,1036)),
 			 ("024","RU"):np.zeros((112,1036)),
@@ -580,7 +800,7 @@ badamplist = {("024","LL"):np.zeros((112,1036)),
 			 ("092","RU"):np.zeros((112,1036)),
 			 ("095","RU"):np.zeros((112,1036)),
 			 ("096","LL"):etwas,
-			 ("106","RU"):np.zeros((112,1036))}
+			 ("106","RU"):np.zeros((112,1036))}"""
 
 SETTOZERO = False
 if SETTOZERO:
@@ -607,15 +827,58 @@ if SAVEASFITS:
 		hdulist.writeto(filename, overwrite=True)
 		print('wrote to '+filename)
 
+PLOT = args.plot
+if PLOT:
+	second_skysub_iter[second_skysub_iter==0] = np.nan
+	orig_rebin[orig_rebin==0] = np.nan
 
+	avff, avaa = np.nanmedian(np.concatenate(second_skysub_iter), axis=1), np.nanmedian(np.concatenate(orig_rebin), axis=1)
+	avff_sort, avaa_sort = np.argsort(avff), np.argsort(avaa)
 
-tickarray = np.array(np.split((np.arange(flag.size)), flag.shape[0]))[START:STOP][np.where(~flag[order])]
+	plt.figure(figsize=(15,5))
+	plt.hist([avff, avaa], bins=np.arange(-10,25, 1), label=['ffskysub','ampskysub'], density=True)
+	plt.axvline(np.nanmedian(avff), color='green', label='median ffskysub ({:.3f})'.format(np.nanmedian(avff)))
+	plt.axvline(np.nanmedian(avaa), color='red', label='median ampskysub ({:.3f})'.format(np.nanmedian(avaa)))
+	plt.axvline(avff[avff_sort[int(avff[np.isfinite(avff)].size*0.6)]], label='upper 40%:  {:.2f}'.format(avff[avff_sort[int(avff[np.isfinite(avff)].size*0.6)]]), linestyle=':')
+	plt.axvline(avff[avff_sort[int(avff[np.isfinite(avff)].size*0.7)]], label='upper 30%:  {:.2f}'.format(avff[avff_sort[int(avff[np.isfinite(avff)].size*0.7)]]), linestyle='-.')
+	plt.axvline(avff[avff_sort[int(avff[np.isfinite(avff)].size*0.8)]], label='upper 20%:  {:.2f}'.format(avff[avff_sort[int(avff[np.isfinite(avff)].size*0.8)]]), linestyle='--')
+	plt.axvline(avff[avff_sort[int(avff[np.isfinite(avff)].size*0.9)]], label='upper 10%:  {:.2f}'.format(avff[avff_sort[int(avff[np.isfinite(avff)].size*0.9)]]))
+	plt.xlabel('average of fiber in counts')
+	plt.legend()
+	plt.savefig("../ffskysub-plots/histogram-{}.png".format(shot+exp), bbox_inches="tight")
 
-ampticks = np.arange(N)*112
+	percentages = [0, 0.7, 0.8, 0.9, 0.95]
+	plt.figure(figsize=(20,8))
+	for counter, idx in enumerate(percentages[1:]):
+	    plt.subplot(2,4,counter+1)
+	    fftmp = np.nanmedian(np.concatenate(second_skysub_iter)[avff_sort[:int(avff[np.isfinite(avff)].size*idx)]], axis=0)[20:-20]
+	    aatmp = np.nanmedian(np.concatenate(orig_rebin)[avff_sort[:int(avff[np.isfinite(avff)].size*idx)]], axis=0)[20:-20]
+	    plt.plot(def_wave[20:-20], median_filter(fftmp, size=21), label="ff")
+	    plt.plot(def_wave[20:-20], median_filter(aatmp, size=21), label="aa")
+	    plt.axhline(0, linestyle="--", color="grey")
+	    plt.title('median, removed '+str(100-idx*100)+'%')
+	    plt.ylim(-2,2)
+	    #plt.xlim(3500, 5500)
+	    plt.legend();
+	    
+	for counter, idx in enumerate(percentages[1:]):
+	    plt.subplot(2,4,counter+5)
+	    fftmp_b = biweight_location(np.concatenate(second_skysub_iter)[avff_sort[:int(avff[np.isfinite(avff)].size*idx)]], axis=0)[20:-20]
+	    aatmp_b = biweight_location(np.concatenate(orig_rebin)[avff_sort[:int(avff[np.isfinite(avff)].size*idx)]], axis=0)[20:-20]
+	    plt.plot(def_wave[20:-20], median_filter(fftmp_b, size=21), label="ff")
+	    plt.plot(def_wave[20:-20], median_filter(aatmp_b, size=21), label="aa")
+	    plt.axhline(0, linestyle="--", color="grey")
+	    plt.title('biweight, removed '+str(100-idx*100)+'%')
+	    plt.ylim(-2,2)
+	    #plt.xlim(3500, 5500)
+	    plt.legend();
+	plt.savefig("../ffskysub-plots/cutoff-{}.png".format(shot+exp), bbox_inches="tight")
 
 PLOT = args.plot
 PCAPLOT = False
-if PLOT:
+if PLOT:	
+	tickarray = np.array(np.split((np.arange(flag.size)), flag.shape[0]))[START:STOP][np.where(~flag[order])]
+	ampticks = np.arange(N)*112
 	plt.figure(figsize=(25,200))
 	plt.subplot(131)
 	plt.title("original")
