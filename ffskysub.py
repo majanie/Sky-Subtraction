@@ -123,37 +123,6 @@ def get_updated_rescor():
 				pass
 	return rescor2
 
-def get_xrt_new():
-	xrt_0, wave = pickle.load(open('xrt-2019.pickle','rb'))
-	xrt = {}
-	weirdampslist = [[('035','LL'),590, 615],[('082','RL'),654,681],[('023','RL'), 349, 376],[('026','LL'), 95,142]]
-	for amp in weirdampslist:
-		key, start, stop = amp
-		xrt_0[key] = np.concatenate([xrt_0[key][:start],np.interp(np.arange(stop-start),[0,stop-start],[xrt_0[key][start],xrt_0[key][stop]]),xrt_0[key][stop:]])
-
-	line = 3910
-	here1 = np.where((wave>line-10)&(wave<line+10))[0]
-	line = 4359
-	here2 = np.where((wave>line-10)&(wave<line+10))[0]
-	line = 5461
-	here3 = np.where((wave>line-10)&(wave<line+10))[0]
-	if SMOOTHATA:
-		for key in xrt_0.keys():
-			here = here1
-			slope = (xrt_0[key][here[-1]+1] - xrt_0[key][here[0]-1])/float(len(here))
-			xrt_1 = np.concatenate([xrt_0[key][:here[0]], xrt_0[key][here[0]-1] + np.arange(len(here))*slope, xrt_0[key][here[-1]+1:]])
-			here = here2
-			slope = (xrt_0[key][here[-1]+1] - xrt_0[key][here[0]-1])/float(len(here))
-			xrt_1 = np.concatenate([xrt_0[key][:here[0]], xrt_0[key][here[0]-1] + np.arange(len(here))*slope, xrt_0[key][here[-1]+1:]])
-			here = here3
-			slope = (xrt_0[key][here[-1]+1] - xrt_0[key][here[0]-1])/float(len(here))
-			xrt_1 = np.concatenate([xrt_0[key][:here[0]], xrt_0[key][here[0]-1] + np.arange(len(here))*slope, xrt_0[key][here[-1]+1:]])
-			xrt[key] = interp1d(wave, gaussian_filter(xrt_1, sigma=SIGMA), fill_value=(xrt_1[0], xrt_1[-1]),bounds_error=False)
-	else:
-		for key in xrt_0.keys():
-			xrt[key] = interp1d(wave, xrt_0[key], fill_value=(xrt_0[key][0],xrt_0[key][-1]),bounds_error=False)
-	return xrt
-
 def boxes(array, flag, size):
 	array = np.where(array==0, np.nan, array)
 
@@ -175,7 +144,7 @@ def boxes(array, flag, size):
 	#print medians.shape
 	coordgrid = np.array([[[float(i)/boxes2[0].shape[0]-0.5,float(j)/boxes1[0].shape[0]-0.5] for j in range(1032)] for i in range(112)])
 	#print coordgrid.shape
-	i#coordgrid = np.transpose(coordgrid, [2, 0, 1])
+	#coordgrid = np.transpose(coordgrid, [2, 0, 1])
 	#for i in range(112):
 #		if (float(j)/boxes1[0].shape[0]-0.5>=0)&(float(j)/boxes1[0].shape[0]-0.5<=medians.shape[1]-1)
 #			&(float(i)/boxes2[0].shape[0]-0.5 >= 0) & (float(i)/boxes2[0].shape[0]-0.5 <= medians.shape[0]-1):
@@ -240,90 +209,6 @@ def boxes(array, flag, size):
 	else:
 		return medfilt
 
-def boxcar(array, flag, size):
-	array_collapsed = array[flag]
-	array_collapsed[array_collapsed==0.0] = np.nan
-	medfilt = median_filter(array_collapsed, size=size)
-	#print medfilt
-	#print "nan: ", medfilt[np.isnan(medfilt)].size/float(medfilt.size)
-
-	if len(flag[flag])==0:
-		return np.zeros(array.shape)
-
-	j = -1
-	medians = []
-	for i in range(len(flag)):
-		if flag[i]:
-			j+=1
-			medians.append(medfilt[j])
-		elif j==-1:
-			medians.append(medfilt[0])
-		else: 
-			try:
-				medians.append(medfilt[j])
-			except Exception as e:
-				print e
-				medians.append(np.zeros(1032))
-	medians = np.array(medians)
-	#print "medians.shape: ", medians.shape
-
-	return medians
-
-
-
-def get_xrt_time():
-		shotid = int(shot[:-4]+shot[-3:])
-		print shotid
-		if 20170000000 < shotid < 20170700000:
-			time = "201701"
-			print "ERROR: no 2017 amp2amps."
-			return 0
-		elif 20170700000 < shotid < 20180000000:
-			time = "201702"
-			print "Error: no 2017 amp2amps."
-			return 0
-		elif 20180000000 < shotid < 20180700000:
-			time = "2018"
-		elif 20180700000 < shotid < 20190000000:
-			time = "2018"
-		elif 20190000000 < shotid:
-			time = "2019"
-		pattern = "/work/05865/maja_n/stampede2/midratio/{}/{}.dat"
-		#xrt_0, wave = pickle.load(open('xrt-2019.pickle','rb'))
-		xrt = {}
-		weirdampslist = [[('035','LL'),590, 615],[('082','RL'),654,681],[('023','RL'), 349, 376],[('026','LL'), 95,142]]
-		#for amp in weirdampslist:
-		#		key, start, stop = amp
-		#		xrt_0[key] = np.concatenate([xrt_0[key][:start],np.interp(np.arange(stop-start),[0,stop-start],[xrt_0[key][start],xrt_0[key][stop]]),xrt_0[key][stop:]])
-		wave = def_wave
-		line = 3910
-		here1 = np.where((wave>line-10)&(wave<line+10))[0]
-		line = 4359
-		here2 = np.where((wave>line-10)&(wave<line+10))[0]
-		line = 5461
-		here3 = np.where((wave>line-10)&(wave<line+10))[0]
-		if SMOOTHATA:
-				for multi in multinames:
-						key = (multi[10:13], multi[18:20])
-						tmp = ascii.read(pattern.format(time, multi))
-						wl, xrt_0 = tmp["wl"], tmp["midratio"]
-						here = here1
-						slope = (xrt_0[here[-1]+1] - xrt_0[here[0]-1])/float(len(here))
-						xrt_1 = np.concatenate([xrt_0[:here[0]], xrt_0[here[0]-1] + np.arange(len(here))*slope, xrt_0[here[-1]+1:]])
-						here = here2
-						slope = (xrt_0[here[-1]+1] - xrt_0[here[0]-1])/float(len(here))
-						xrt_1 = np.concatenate([xrt_0[:here[0]], xrt_0[here[0]-1] + np.arange(len(here))*slope, xrt_0[here[-1]+1:]])
-						here = here3
-						slope = (xrt_0[here[-1]+1] - xrt_0[here[0]-1])/float(len(here))
-						xrt_1 = np.concatenate([xrt_0[:here[0]], xrt_0[here[0]-1] + np.arange(len(here))*slope, xrt_0[here[-1]+1:]])
-						xrt_1 = np.interp(np.arange(len(xrt_1)), np.arange(len(xrt_1))[np.isfinite(xrt_1)], xrt_1[np.isfinite(xrt_1)])
-						#print xrt_1[~np.isfinite(xrt_1)]
-						xrt[key] = interp1d(wave, gaussian_filter(xrt_1, sigma=SIGMA/2.), fill_value=(xrt_1[0],xrt_1[-1]),bounds_error=False)
-		else:
-				for key in xrt_0.keys():
-						xrt[key] = interp1d(wave, xrt_0[key], fill_value=(xrt_0[key][0],xrt_0[key][-1]),bounds_error=False)
-		return xrt
-
 def get_closest_date(inpath): 
 	pp = np.sort(glob.glob(inpath))
 	date = int(shot[:-4])
@@ -372,10 +257,20 @@ def get_xrt_time_new():
 					xrt[key] = interp1d(wave, xrt_0[key], fill_value=(xrt_0[key][0],xrt_0[key][-1]),bounds_error=False)
 	return xrt
 
-
-#inpath = "/work/05865/maja_n/stampede2/midratio/*"
-#print(get_closest_date(inpath))
-#sys.exit(1)
+def get_rescor_time():
+	inpath = "/work/05865/maja_n/stampede2/residualcorrection/*"
+	outpath = get_closest_date(inpath)
+	pattern = outpath+"/{}res.fits"
+	print(pattern)
+	rescor = {}
+	for multi in multinames:
+		key = (multi[10:13], multi[18:20])
+		try:
+			rescor[key] = fits.getdata(pattern.format(multi))
+		except IOError:
+			rescor[key] = np.zeros((112, 1032))
+			print("Error: no residual correction at "+pattern.format(multi))
+	return rescor
 
 # SWITCHES
 
@@ -453,6 +348,7 @@ else: # get it from the multifits files
 	ifuslots, amps, exposures, multinames = np.array(ifuslots), np.array(amps), np.array(exposures), np.array(multinames)
 	
 	print sky_spectra_orig.shape
+
 
 rescor = get_rescor(ifuslots, amps, def_wave)
 
@@ -761,52 +657,6 @@ print("second Skysub iter.shape : ", second_skysub_iter.shape)
 #fiber_to_fiber_int, new_sky_iter_int = np.array(fiber_to_fiber_int), np.array(new_sky_iter_int)
 
 
-etwas = [np.concatenate([[1. for i in range(985)],[ 0. for k in range(1036-985)]]) for j in range(38)]
-for j in range(112-38):
-	etwas.append([1. for i in range(1036)])
-
-etwas = np.array(etwas)
-
-badamplist = {#("024","LL"):np.zeros((112,1036)),
-               #          ("024","LU"):np.zeros((112,1036)),
-               #          ("024","RL"):np.zeros((112,1036)),
-               #          ("024","RU"):np.zeros((112,1036)),
-               #          ("032","LU"):np.zeros((112,1036)),
-               #          ("032","LL"):np.zeros((112,1036)),
-               #          ("083","RU"):np.zeros((112,1036)),
-               #          ("083","RL"):np.zeros((112,1036)),
-               #          ("046","RU"):np.zeros((112,1036)),
-                         ("046","RL"):np.zeros((112,1036)),
-               #          ("092","LL"):np.zeros((112,1036)),
-               #          ("092","LU"):np.zeros((112,1036)),
-               #          ("092","RL"):np.zeros((112,1036)),
-               #          ("092","RU"):np.zeros((112,1036)),
-               #          ("095","RU"):np.zeros((112,1036)),
-               #          ("095","RL"):np.zeros((112,1036)),
-               #          ("096","LL"):etwas,
-                         ("106","RU"):np.zeros((112,1036))}
-
-"""badamplist = {("024","LL"):np.zeros((112,1036)),
-			 ("024","LU"):np.zeros((112,1036)),
-			 ("024","RL"):np.zeros((112,1036)),
-			 ("024","RU"):np.zeros((112,1036)),
-			 ("083","RU"):np.zeros((112,1036)),
-			 ("083","RL"):np.zeros((112,1036)),
-			 ("046","RU"):np.zeros((112,1036)),
-			 ("046","RL"):np.zeros((112,1036)),
-			 ("092","LL"):np.zeros((112,1036)),
-			 ("092","LU"):np.zeros((112,1036)),
-			 ("092","RL"):np.zeros((112,1036)),
-			 ("092","RU"):np.zeros((112,1036)),
-			 ("095","RU"):np.zeros((112,1036)),
-			 ("096","LL"):etwas,
-			 ("106","RU"):np.zeros((112,1036))}"""
-
-SETTOZERO = False
-if SETTOZERO:
-	for key in badamplist.keys():
-		second_skysub_iter[(ifuslots[order]==key[0])&(amps[order]==key[1])] *= badamplist[key]
-
 SAVEASFITS = args.saveasfits
 if SAVEASFITS:
 	for i in range(len(order)):
@@ -826,135 +676,6 @@ if SAVEASFITS:
 		filename = '/work/05865/maja_n/stampede2/ffskysub/{}/{}/{}.fits'.format(shot,exp,name)
 		hdulist.writeto(filename, overwrite=True)
 		print('wrote to '+filename)
-
-PLOT = args.plot
-if PLOT:
-	second_skysub_iter[second_skysub_iter==0] = np.nan
-	orig_rebin[orig_rebin==0] = np.nan
-
-	avff, avaa = np.nanmedian(np.concatenate(second_skysub_iter), axis=1), np.nanmedian(np.concatenate(orig_rebin), axis=1)
-	avff_sort, avaa_sort = np.argsort(avff), np.argsort(avaa)
-
-	plt.figure(figsize=(15,5))
-	plt.hist([avff, avaa], bins=np.arange(-10,25, 1), label=['ffskysub','ampskysub'], density=True)
-	plt.axvline(np.nanmedian(avff), color='green', label='median ffskysub ({:.3f})'.format(np.nanmedian(avff)))
-	plt.axvline(np.nanmedian(avaa), color='red', label='median ampskysub ({:.3f})'.format(np.nanmedian(avaa)))
-	plt.axvline(avff[avff_sort[int(avff[np.isfinite(avff)].size*0.6)]], label='upper 40%:  {:.2f}'.format(avff[avff_sort[int(avff[np.isfinite(avff)].size*0.6)]]), linestyle=':')
-	plt.axvline(avff[avff_sort[int(avff[np.isfinite(avff)].size*0.7)]], label='upper 30%:  {:.2f}'.format(avff[avff_sort[int(avff[np.isfinite(avff)].size*0.7)]]), linestyle='-.')
-	plt.axvline(avff[avff_sort[int(avff[np.isfinite(avff)].size*0.8)]], label='upper 20%:  {:.2f}'.format(avff[avff_sort[int(avff[np.isfinite(avff)].size*0.8)]]), linestyle='--')
-	plt.axvline(avff[avff_sort[int(avff[np.isfinite(avff)].size*0.9)]], label='upper 10%:  {:.2f}'.format(avff[avff_sort[int(avff[np.isfinite(avff)].size*0.9)]]))
-	plt.xlabel('average of fiber in counts')
-	plt.legend()
-	plt.savefig("../ffskysub-plots/histogram-{}.png".format(shot+exp), bbox_inches="tight")
-
-	percentages = [0, 0.7, 0.8, 0.9, 0.95]
-	plt.figure(figsize=(20,8))
-	for counter, idx in enumerate(percentages[1:]):
-	    plt.subplot(2,4,counter+1)
-	    fftmp = np.nanmedian(np.concatenate(second_skysub_iter)[avff_sort[:int(avff[np.isfinite(avff)].size*idx)]], axis=0)[20:-20]
-	    aatmp = np.nanmedian(np.concatenate(orig_rebin)[avff_sort[:int(avff[np.isfinite(avff)].size*idx)]], axis=0)[20:-20]
-	    plt.plot(def_wave[20:-20], median_filter(fftmp, size=21), label="ff")
-	    plt.plot(def_wave[20:-20], median_filter(aatmp, size=21), label="aa")
-	    plt.axhline(0, linestyle="--", color="grey")
-	    plt.title('median, removed '+str(100-idx*100)+'%')
-	    plt.ylim(-2,2)
-	    #plt.xlim(3500, 5500)
-	    plt.legend();
-	    
-	for counter, idx in enumerate(percentages[1:]):
-	    plt.subplot(2,4,counter+5)
-	    fftmp_b = biweight_location(np.concatenate(second_skysub_iter)[avff_sort[:int(avff[np.isfinite(avff)].size*idx)]], axis=0)[20:-20]
-	    aatmp_b = biweight_location(np.concatenate(orig_rebin)[avff_sort[:int(avff[np.isfinite(avff)].size*idx)]], axis=0)[20:-20]
-	    plt.plot(def_wave[20:-20], median_filter(fftmp_b, size=21), label="ff")
-	    plt.plot(def_wave[20:-20], median_filter(aatmp_b, size=21), label="aa")
-	    plt.axhline(0, linestyle="--", color="grey")
-	    plt.title('biweight, removed '+str(100-idx*100)+'%')
-	    plt.ylim(-2,2)
-	    #plt.xlim(3500, 5500)
-	    plt.legend();
-	plt.savefig("../ffskysub-plots/cutoff-{}.png".format(shot+exp), bbox_inches="tight")
-
-PLOT = args.plot
-PCAPLOT = False
-if PLOT:	
-	tickarray = np.array(np.split((np.arange(flag.size)), flag.shape[0]))[START:STOP][np.where(~flag[order])]
-	ampticks = np.arange(N)*112
-	plt.figure(figsize=(25,200))
-	plt.subplot(131)
-	plt.title("original")
-	plt.imshow(np.concatenate(sky_subtracted[order]), vmin=-40, vmax=40, interpolation="none", aspect="auto", cmap="Greys_r")
-	plt.yticks((tickarray - START*112), 'x'*len(tickarray), color='red'); #- START*112
-#	plt.colorbar();
-	plt.subplot(132)
-	plt.title("xskysub")
-	plt.imshow(np.concatenate(second_skysub_iter), vmin=-40, vmax=40, interpolation="none", aspect="auto", cmap="Greys_r")
-	plt.yticks(ampticks, [ifuslots[i]+amps[i] for i in order], rotation=90)#(tickarray - START*112, 'x'*len(tickarray), color='red')
-#	plt.colorbar();
-	plt.subplot(133)
-	plt.title("original - xskysub")
-	plt.imshow(np.concatenate(relres), vmin=-0.02, vmax=0.02, interpolation="none", aspect="auto", cmap="Greys_r");
-	#plt.imshow(np.concatenate(orig_rebin-second_skysub_iter), vmin=-10, vmax=10, interpolation="none", aspect="auto", cmap="Greys_r");
-	plt.yticks(ampticks, [ifuslots[i]+amps[i] for i in order], rotation=90);
-#	plt.colorbar(orientation="horizontal");""""""
-	#plt.savefig('../lsspresent/test-fullframe-{}-{}-own-smooth-skip-shift.png'.format(shot, exp), bbox_inches='tight')
-	plt.savefig('../lsspresent/original-ffskysub-{}-{}.png'.format(shot, exp), bbox_inches='tight')
-
-
-	original_sky_spectra = table["sky_spectrum"].data
-	original_sky_spectra = np.array(np.split(original_sky_spectra, original_sky_spectra.shape[0]/112))[exposures==exp][order]
-	print original_sky_spectra.shape
-	plt.figure(figsize=(25,200))
-	plt.subplot(131)
-	plt.title("original fiber2fiber")
-	plt.imshow(np.concatenate(fiber_to_fiber[order]), vmin=-1, vmax=1, interpolation="none", aspect="auto", cmap="Greys_r")
-	plt.yticks((tickarray - START*112), 'x'*len(tickarray), color='red'); #- START*112
-#	plt.colorbar();
-	plt.subplot(132)
-	plt.title("rebinned fiber2fiber")
-	plt.imshow(np.concatenate(fiber_to_fiber_int), vmin=-1, vmax=1, interpolation="none", aspect="auto", cmap="Greys_r")
-	plt.yticks(ampticks, [ifuslots[i]+amps[i] for i in order], rotation=90)#(tickarray - START*112, 'x'*len(tickarray), color='red')
-#	plt.colorbar();
-	plt.subplot(133)
-	plt.title("original sky_spectrum")
-	plt.imshow(np.concatenate(original_sky_spectra), vmin=-40, vmax=200, interpolation="none", aspect="auto", cmap="Greys_r")
-	#plt.imshow(np.concatenate(relres), vmin=-0.02, vmax=0.02, interpolation="none", aspect="auto", cmap="Greys_r")
-	plt.subplot(143)
-	plt.title("rebinned ff sky_spectrum")
-	plt.imshow(np.concatenate(new_sky_iter_int), vmin=-40, vmax=200, interpolation="none", aspect="auto", cmap="Greys_r");
-	plt.yticks(ampticks, [ifuslots[i]+amps[i] for i in order], rotation=90);
-#	plt.colorbar(orientation="horizontal");""""""
-	plt.savefig('../lsspresent/fiber2fiber_sky_spectrum_{}_{}.png'.format(shot, exp), bbox_inches='tight')
-
-
-if PCAPLOT:
-	# compare to fullframe pca
-	fullframepca = pickle.load(open('../fullframe-{}-{}-pca.pickle'.format(shot, exp),'rb'))
-	pcaarray = []
-	for i in order:
-		try:
-			pcaarray.append(fullframepca[(ifuslots[i], amps[i])])
-		except KeyError as e:
-			pcaarray.append(np.zeros((112,1010)))
-			print e
-	pcashow = np.concatenate(pcaarray)
-
-	plt.figure(figsize=(25,200))
-	plt.subplot(131)
-	plt.title("original")
-	plt.imshow(np.concatenate(sky_subtracted[order]), vmin=-40, vmax=40, interpolation="none", aspect="auto", cmap="Greys_r")
-	plt.yticks((tickarray - START*112), 'x'*len(tickarray), color='red'); #- START*112
-#	plt.colorbar();
-	plt.subplot(132)
-	plt.title("xskysub")
-	plt.imshow(np.concatenate(second_skysub_iter), vmin=-20, vmax=20, interpolation="none", aspect="auto", cmap="Greys_r")
-	plt.yticks(ampticks, [ifuslots[i]+amps[i] for i in order], rotation=90)#(tickarray - START*112, 'x'*len(tickarray), color='red')
-#	plt.colorbar();
-	plt.subplot(133)
-	plt.title("pca skysub")
-	plt.imshow(pcashow, vmin=-40, vmax=40, interpolation="none", aspect="auto", cmap="Greys_r");
-	plt.yticks(ampticks, [ifuslots[i]+amps[i] for i in order], rotation=90);
-#	plt.colorbar(orientation="horizontal");""""""
-	plt.savefig('../lsspresent/test-fullframe-{}-{}-own-smooth-skip-pca.png'.format(shot, exp), bbox_inches='tight')
 
 SAVEASPICKLE = args.saveaspickle
 if SAVEASPICKLE:
