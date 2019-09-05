@@ -29,18 +29,20 @@ import sys
 parser = argparse.ArgumentParser()
 parser.add_argument('-s','--shot',type=str,default='20190101v014',help='Shot')
 parser.add_argument('-e','--exp',type=str,default='exp02',help='Exposure')
-parser.add_argument('--saveaspickle', type=bool, default=False,help='Save as pickle file for building a cube?')
-parser.add_argument('--saveasfits', type=bool, default=True, help='save as fits file for any analysis')
+parser.add_argument("--rescor", type=bool, default=False, help="Use for residual correction?")
+parser.add_argument("-sf", '--saveasfits', type=int, default=1, help='save as fits file for any analysis')
 parser.add_argument('--plot', type=bool, default=False, help='save a plot of all residuals, original skysub, flagged sources and relative residuals?')
+parser.add_argument('--saveaspickle', type=bool, default=False,help='Save as pickle file for building a cube?')
 parser.add_argument('--interpolate', type=bool, default=True, help='linear interpolation from 3470 to 5540 AA in the end')
 parser.add_argument('--rebin', type=bool, default=False, help='Max rebinning for rectification instead of interpolation')
 args = parser.parse_args(sys.argv[1:])
 
+args.saveasfits = bool(args.saveasfits)
 print '\n SETTINGS \n'
 print 'shot, exp : ', args.shot, args.exp
 print 'save as fits : ', args.saveasfits
 print 'save as pickle : ', args.saveaspickle
-print 'plot : ', args.plot
+print "use for rescor : ", args.rescor
 print 'interpolate : ', args.interpolate
 print 'rebinning : ', args.rebin
 print '\n'
@@ -134,80 +136,15 @@ def boxes(array, flag, size):
 	for i, box1 in enumerate(boxes2):
 		for j, box2 in enumerate(boxes1):
 			medians[i,j] = np.nanmedian(array[box1][:,box2][flag[box1]])
+			if ~np.isfinite(medians[i,j]):
+				if np.isfinite(medians[i-1,j]):
+					medians[i,j] = medians[i-1,j]
+					print("substituted")
 			for k in box1:
 				for l in box2:
 					medfilt[k,l] = medians[i,j]
 	if True:
 		return gaussian_filter(medfilt, sigma=(8,50))
-
-	#print medians
-	#print medians.shape
-	coordgrid = np.array([[[float(i)/boxes2[0].shape[0]-0.5,float(j)/boxes1[0].shape[0]-0.5] for j in range(1032)] for i in range(112)])
-	#print coordgrid.shape
-	#coordgrid = np.transpose(coordgrid, [2, 0, 1])
-	#for i in range(112):
-#		if (float(j)/boxes1[0].shape[0]-0.5>=0)&(float(j)/boxes1[0].shape[0]-0.5<=medians.shape[1]-1)
-#			&(float(i)/boxes2[0].shape[0]-0.5 >= 0) & (float(i)/boxes2[0].shape[0]-0.5 <= medians.shape[0]-1):
-#			medfilt[i,j] = map_coordinates(medians, [[float(i)/boxes2[0].shape[0]-0.5 for j in range(1032)], [float(j)/boxes1[0].shape[0]-0.5 for j in range(1032)]], mode="nearest")
-#		elif (float(i)/boxes2[0].shape[0]-0.5 < 0): 
-#			medfilt[i,j] = map_coordinates(medians, [[float(i)/boxes2[0].shape[0]-0.5 for j in range(1032)], [float(j)/boxes1[0].shape[0]-0.5 for j in range(1032)]], mode="nearest")
-	medfilt = map_coordinates(medians, np.transpose(coordgrid, [2, 0, 1]))
-	#print medfilt.shape
-
-	true1 = coordgrid[:,:,0] < 0
-	true2 = coordgrid[:,:,1] < 0
-	true3 = coordgrid[:,:,0] > medians.shape[0]-1
-	true4 = coordgrid[:,:,1] > medians.shape[1]-1
-	#print true1.shape, true2.shape, true3.shape, true4.shape
-
-	medfilt[ true1 & true2 ] = medians[0,0]
-	medfilt[ true1 & true4 ] = medians[0,-1]
-	medfilt[ true3 & true2 ] = medians[-1,0]
-	medfilt[ true3 & true4 ] = medians[-1,-1]
-	
-	idxarray = np.arange(0,medians.shape[1]-1+1/1032., size[1]/1032.)
-	idxarray2 = np.arange(0, medians.shape[0]-1.+1/1032., size[0]/112.)
-	
-	here = true1 & ~true2 & ~true4
-	for i in range(112):
-		if len(here[i][here[i]])==0:
-			continue
-		medfilt[i][here[i]] += map_coordinates(medians, [[0 for i in range(len(idxarray))],idxarray])
-	
-	here = true3 & ~true2 & ~true4
-	for i in range(112):
-		if len(here[i][here[i]])==0:
-			continue
-		medfilt[i][here[i]] += map_coordinates(medians, [[medians.shape[0]-1 for i in range(len(idxarray))], idxarray])
-	
-	here = true2 & ~true1 & ~true3
-	here = here.T
-	for i in range(1032):
-		if len(here[i][here[i]])==0:
-			continue
-		tmp = np.zeros(medfilt.shape).T
-		#(medfilt.T[i][here[i]]).T += map_coordinates(medians, [idxarray2, [0 for i in range(len(idxarray2))]])
-		tmp[i][here[i]] += map_coordinates(medians, [idxarray2, [0 for i in range(len(idxarray2))]])	
-		medfilt += tmp.T
-	
-	here = true4 & ~true1 & ~true3
-	here = here.T
-	for i in range(1032):
-		if len(here[i][here[i]])==0:
-			continue
-		tmp = np.zeros(medfilt.shape).T
-		tmp[i][here[i]] += map_coordinates(medians, [idxarray2, [medians.shape[1]-1 for i in range(len(idxarray2))]])
-		#(medfilt.T[i][here[i]]).T += map_coordinates(medians, [idxarray2, [medians.shape[1]-1 for i in range(len(idxarray2))]])
-		medfilt += tmp.T
-	
-	#medfilt[ true1 & ~true2 & ~true4] += map_coordinates(medians, [[0 for i in range(len(idxarray))],idxarray])
-	#medfilt[ true3 & ~true2 & ~true4] += map_coordinates(medians, [[medians.shape[0]-1 for i in range(len(idxarray))], idxarray])
-	#medfilt[ true2 & ~true1 & ~true3] += map_coordinates(medians, [idxarray2, [0 for i in range(len(idxarray2))]])
-	#medfilt[ true4 & ~true1 & ~true3] += map_coordinates(medians, [idxarray2, [medians.shape[1]-1 for i in range(len(idxarray2))]])
-	if False:
-		return gaussian_filter(medfilt, sigma=(8,100))
-	else:
-		return medfilt
 
 def get_closest_date(inpath): 
 	pp = np.sort(glob.glob(inpath))
@@ -270,6 +207,10 @@ def get_rescor_time():
 		except IOError:
 			rescor[key] = np.zeros((112, 1032))
 			print("Error: no residual correction at "+pattern.format(multi))
+	if args.rescor:
+		print("Setting residual corrections to zero for new rescor calculation.")
+		for key in rescor.keys():
+			rescor[key] = np.zeros((112, 1032))
 	return rescor
 
 # SWITCHES
@@ -349,10 +290,11 @@ else: # get it from the multifits files
 	
 	print sky_spectra_orig.shape
 
-
-rescor = get_rescor(ifuslots, amps, def_wave)
-
-updated_rc = get_updated_rescor()
+if args.rescor:
+	rescor = get_rescor_time()
+else:
+	rescor = get_rescor(ifuslots, amps, def_wave)
+	updated_rc = get_updated_rescor()
 
 meanmean = np.nanmedian(sky_spectra_orig[:,600:900], axis=1)
 biw = biweight_location(meanmean)
@@ -602,19 +544,21 @@ INTERPOLATE = args.interpolate
 REBIN = args.rebin
 orig_rebin = []
 for counter, i in enumerate(order):#range(len(sky_spectra))[START:STOP]:
-	new_skysub = (sky_spectra[i] - new_sky_iter[i]*(1+rescor[(ifuslots[i], amps[i])])) #*(1+updated_rc[(ifuslots[i], amps[i])])) #CHANGE THIS!!!
+	new_skysub = (sky_spectra[i] - new_sky_iter[i]*(1+rescor[(ifuslots[i], amps[i])]))
 	if FILTER:
+		new_skysub[sky_spectra[i]==0] = np.nan
 		medfilt = boxes(new_skysub, flag[i], size=size) #boxcar(new_skysub, flag[i], size=(14, 50))#newboxcar(new_skysub, flag[i], FILTERSIZE) #median_filter(new_skysub[flag[i]], size=medfilt_size)
 		medfilt[~np.isfinite(medfilt)] = 0
 		medianfilters.append(medfilt)
 		new_skysub -= medfilt
 	new_skysub[sky_spectra[i]==0] = 0
 	new_skysub_rel  = new_skysub/(new_sky_iter[i]*(1+rescor[(ifuslots[i], amps[i])]))
-	
-	#primhdu = fits.PrimaryHDU(new_skysub_rel)
-	#hdul = fits.HDUList([primhdu])
-	#hdul.writeto("/work/05865/maja_n/stampede2/rescor/tmp/rc_"+shot+"_"+exp+"_"+multinames[i]+".fits", overwrite=True)
-	#print("wrote to /work/05865/maja_n/stampede2/rescor/tmp/rc_"+shot+"_"+exp+"_"+multinames[i]+".fits")
+
+	if args.rescor:	
+		primhdu = fits.PrimaryHDU(new_skysub_rel)
+		hdul = fits.HDUList([primhdu])
+		hdul.writeto("/work/05865/maja_n/stampede2/rescor-tmp/rc_"+shot+"_"+exp+"_"+multinames[i]+".fits", overwrite=True)
+		print("wrote to /work/05865/maja_n/stampede2/rescor-tmp/rc_"+shot+"_"+exp+"_"+multinames[i]+".fits")
 	new_skysub_int = []
 	orig_int = []
 	#new_skysub_int_rel = []
