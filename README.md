@@ -1,7 +1,9 @@
 ## Full-frame sky subtraction
 
 Clone Greg's Panacea repository and copy ffskysub.py to the directory. The code uses Greg's tools.
+
 Run python ffskysub.py --shot DATEVOBS --exp DITHER, where DATEVOBS is e.g. 20190101v016 and DITHER could be exp01, exp02, or exp03.
+
 It runs in python2 and python3 and takes about 5 to 6 minutes to run. 
 
 
