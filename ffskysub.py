@@ -37,14 +37,14 @@ parser.add_argument('--rebin', type=bool, default=False, help='Max rebinning for
 args = parser.parse_args(sys.argv[1:])
 
 args.saveasfits = bool(args.saveasfits)
-print '\n SETTINGS \n'
-print 'shot, exp : ', args.shot, args.exp
-print 'save as fits : ', args.saveasfits
-print 'save as pickle : ', args.saveaspickle
-print "use for rescor : ", args.rescor
-print 'interpolate : ', args.interpolate
-print 'rebinning : ', args.rebin
-print '\n'
+print('\n SETTINGS \n')
+print('shot, exp : ', args.shot, args.exp)
+print('save as fits : ', args.saveasfits)
+print('save as pickle : ', args.saveaspickle)
+print("use for rescor : ", args.rescor)
+print('interpolate : ', args.interpolate)
+print('rebinning : ', args.rebin)
+print('\n')
 
 shot, exp = args.shot, args.exp
 
@@ -104,7 +104,7 @@ def get_rescor(ifuslots, amps, def_wave):
 			except IndexError:
 				rescor[(ifu, amp)] = np.zeros((112,1032))
 				pass
-	#print "rescor keys: ", rescor.keys()
+	#print("rescor keys: ", rescor.keys()
 	return rescor
 
 def get_updated_rescor():
@@ -119,7 +119,7 @@ def get_updated_rescor():
 				rc = fits.open(gg)[0].data
 				rescor2[(ifu, amp)] = np.array(rc)
 			except Exception as e:
-				print e
+				print(e)
 				rescor2[(ifu, amp)] = np.zeros((112,1032))
 				pass
 	return rescor2
@@ -186,7 +186,7 @@ def get_xrt_time_new():
 					slope = (xrt_0[here[-1]+1] - xrt_0[here[0]-1])/float(len(here))
 					xrt_1 = np.concatenate([xrt_0[:here[0]], xrt_0[here[0]-1] + np.arange(len(here))*slope, xrt_0[here[-1]+1:]])
 					xrt_1 = np.interp(np.arange(len(xrt_1)), np.arange(len(xrt_1))[np.isfinite(xrt_1)], xrt_1[np.isfinite(xrt_1)])
-					#print xrt_1[~np.isfinite(xrt_1)]
+					#print(xrt_1[~np.isfinite(xrt_1)]
 					xrt[key] = interp1d(wave, gaussian_filter(xrt_1, sigma=SIGMA/2.), fill_value=(xrt_1[0],xrt_1[-1]),bounds_error=False)
 	else:
 			for key in xrt_0.keys():
@@ -287,7 +287,7 @@ else: # get it from the multifits files
 
 	ifuslots, amps, exposures, multinames = np.array(ifuslots), np.array(amps), np.array(exposures), np.array(multinames)
 	
-	print sky_spectra_orig.shape
+	#print(sky_spectra_orig.shape
 
 if True:# args.rescor:
 	print("using new rescor.")
@@ -483,13 +483,13 @@ for i in range(new_sky_iter.shape[0]):
 			popt,pcov = curve_fit(gaus,x,y,p0=[300,mean,200])
 			this_mid = popt[1]
 			diff = this_mid - csm_mid
-			print diff
+			print(diff)
 			if ~np.isfinite(diff):
 				diff = 0.
 			wlshifts.append(diff)
 		except Exception as e:
 			wlshifts.append(0.0)
-			print e
+			print(e)
 			new_sky_iter[i] = csm_iter(wavelength[i]) * xrt[(ifuslots[i], amps[i])](wavelength[i]) * factor * fiber_to_fiber[i] #* ata_adj[i]
 	
 	try:
@@ -520,7 +520,7 @@ try:
 	ascii.write(Table({'ifuslot':ifuslots,'amp':amps, ':350':triplesave[:,0], '350:700':triplesave[:,1], '700:':triplesave[:,2]}), '/work/05865/maja_n/stampede2/a2a_adj/{}-{}-a2a_adj.dat'.format(shot, exp), overwrite=True)
 	print('wrote /work/05865/maja_n/stampede2/a2a_adj/{}-{}-a2a_adj.dat'.format(shot, exp))
 except ValueError as e:
-	print e
+	print(e)
 final_adj = np.array(final_adj)
 
 for i in np.where((ifuslots=='013'))[0]:
@@ -612,7 +612,7 @@ if SAVEASFITS:
 		try:
 			header['wl_shift'] = wlshifts[idx]
 		except Exception as e:
-			print e
+			print(e)
 			header["wl_shift"] = 0.
 		hdu = fits.PrimaryHDU(thisskysub, header=header)
 		#hdu2 = fits.ImageHDU(thissky, name="sky_spectrum")
