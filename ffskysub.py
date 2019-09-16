@@ -200,7 +200,7 @@ def get_rescor_time():
 	print(pattern)
 	rescor = {}
 	for multi in multinames:
-		key = (multi[10:13], multi[18:20])
+		key =  (multi[10:13], multi[18:20]) # change keys
 		try:
 			rescor[key] = fits.getdata(pattern.format(multi))
 		except IOError:
@@ -289,7 +289,8 @@ else: # get it from the multifits files
 	
 	print sky_spectra_orig.shape
 
-if args.rescor:
+if True:# args.rescor:
+	print("using new rescor.")
 	rescor = get_rescor_time()
 else:
 	rescor = get_rescor(ifuslots, amps, def_wave)
@@ -355,7 +356,7 @@ N = len(sky_spectra)
 START, STOP = 0,N
 
 for i in range(len(sky_spectra))[START:STOP]:
-	new_skysub = sky_spectra[i] - new_sky_iter[i]*(1+rescor[(ifuslots[i], amps[i])])
+	new_skysub = sky_spectra[i] - new_sky_iter[i]*(1+rescor[(ifuslots[i], amps[i])]) # change keys
 	if  FILTER:
 		medfilt = boxes(new_skysub, np.ones((new_skysub.shape[0],), dtype=bool), size=(4,4)) #boxcar(new_skysub, np.ones((new_skysub.shape[0],), dtype=bool), size=(4,4))# 
 		medianfilters.append(medfilt)
@@ -543,7 +544,7 @@ INTERPOLATE = args.interpolate
 REBIN = args.rebin
 orig_rebin = []
 for counter, i in enumerate(order):#range(len(sky_spectra))[START:STOP]:
-	new_skysub = (sky_spectra[i] - new_sky_iter[i]*(1+rescor[(ifuslots[i], amps[i])]))
+	new_skysub = (sky_spectra[i] - new_sky_iter[i]*(1+rescor[(ifuslots[i], amps[i])])) # change keys
 	if FILTER:
 		new_skysub[sky_spectra[i]==0] = np.nan
 		medfilt = boxes(new_skysub, flag[i], size=size) #boxcar(new_skysub, flag[i], size=(14, 50))#newboxcar(new_skysub, flag[i], FILTERSIZE) #median_filter(new_skysub[flag[i]], size=medfilt_size)
@@ -551,7 +552,7 @@ for counter, i in enumerate(order):#range(len(sky_spectra))[START:STOP]:
 		medianfilters.append(medfilt)
 		new_skysub -= medfilt
 	new_skysub[sky_spectra[i]==0] = 0
-	new_skysub_rel  = new_skysub/(new_sky_iter[i]*(1+rescor[(ifuslots[i], amps[i])]))
+	new_skysub_rel  = new_skysub/(new_sky_iter[i]*(1+rescor[(ifuslots[i], amps[i])])) # change keys
 
 	if args.rescor:	
 		primhdu = fits.PrimaryHDU(new_skysub_rel)
