@@ -27,8 +27,10 @@ import sys
 
 # get shot and exposure from stdin
 parser = argparse.ArgumentParser()
-parser.add_argument('-s','--shot',type=str,default='20190101v014',help='Shot')
+parser.add_argument('-s','--shot',type=str,default='20190101v014',help='Shot (Datevobs).')
 parser.add_argument('-e','--exp',type=str,default='exp02',help='Exposure')
+parser.add_argument('-i', '--inpath', type=str, default="multipath")
+parser.add_argument('-o', '--outpath', type=str, default='.')
 parser.add_argument("--rescor", type=bool, default=False, help="Use for residual correction?")
 parser.add_argument("-sf", '--saveasfits', type=int, default=1, help='save as fits file for any analysis')
 parser.add_argument('--saveaspickle', type=bool, default=False,help='Save as pickle file for building a cube?')
@@ -36,14 +38,24 @@ parser.add_argument('--interpolate', type=bool, default=True, help='linear inter
 parser.add_argument('--rebin', type=bool, default=False, help='Max rebinning for rectification instead of interpolation')
 args = parser.parse_args(sys.argv[1:])
 
+if args.inpath=='multipath':
+	args.inpath = "/work/03946/hetdex/maverick/red1/reductions/{}/virus/virus0000{}/{}/virus/".format(args.shot[:-4], args.shot[-3:], args.exp)
+
+if args.inpath[-1] != '/':
+	args.inpath = args.inpath + '/'
+if args.outpath[-1] != '/':
+	args.outpath = args.outpath + '/'
+
 args.saveasfits = bool(args.saveasfits)
 print('\n SETTINGS \n')
 print('shot, exp : ', args.shot, args.exp)
+print('inpath : ', args.inpath)
+print('outpath : ', args.outpath)
 print('save as fits : ', args.saveasfits)
-print('save as pickle : ', args.saveaspickle)
+#print('save as pickle : ', args.saveaspickle)
 print("use for rescor : ", args.rescor)
-print('interpolate : ', args.interpolate)
-print('rebinning : ', args.rebin)
+#print('interpolate : ', args.interpolate)
+#print('rebinning : ', args.rebin)
 print('\n')
 
 shot, exp = args.shot, args.exp
@@ -254,12 +266,12 @@ if FROMH5:
 	exposures = np.array([x[0] for x in np.split(exposures, exposures.shape[0]/112)])
 
 else: # get it from the multifits files
-	pattern = "/work/03946/hetdex/maverick/red1/reductions/{}/virus/virus0000{}/{}/virus/multi_???_???_???_??.fits"
-	multis = glob.glob(pattern.format(shot[:-4], shot[-3:], exp))
-	multis = np.sort(multis)
-	if len(multis) == 0:
-		print("Error: no fits files found in "+pattern.format(shot[:-4], shot[-3:], exp))
+	pattern = args.inpath + 'multi_???_???_???_??.fits' #"/work/03946/hetdex/maverick/red1/reductions/{}/virus/virus0000{}/{}/virus/multi_???_???_???_??.fits"
+	multis = glob.glob(pattern) #.format(shot[:-4], shot[-3:], exp))
+	if len(multis)==0:
+		print('Error: no fits files found in '+pattern)
 		sys.exit(0)
+	multis = np.sort(multis)
 	sky_spectra_orig, sky_subtracted_orig, fiber_to_fiber_orig, wavelength_orig, ifuslots, multinames, amps, exposures = [], [], [], [], [], [], [], []
 
 	for fin in multis: 
@@ -611,13 +623,19 @@ if SAVEASFITS:
 		header = fits.Header()
 		try:
 			header['wl_shift'] = wlshifts[idx]
+			header['a2a_adj :350'] = triplesave[idx][0]
+			header['a2a_adj 350:700'] = triplesave[idx][1]
+			header['a2a_adj 700:'] = triplesave[idx][2]
 		except Exception as e:
 			print(e)
 			header["wl_shift"] = 0.
+			header['a2a_adj :350'] = 0.
+			header['a2a_adj 350:700'] = 0.
+			header['a2a_adj 700:'] = 0.
 		hdu = fits.PrimaryHDU(thisskysub, header=header)
 		#hdu2 = fits.ImageHDU(thissky, name="sky_spectrum")
 		hdulist = fits.HDUList([hdu])
-		filename = '/work/05865/maja_n/stampede2/ffskysub/{}/{}/{}.fits'.format(shot,exp,name)
+		filename = args.outpath + name + '.fits' # '/work/05865/maja_n/stampede2/ffskysub/{}/{}/{}.fits'.format(shot,exp,name)
 		hdulist.writeto(filename, overwrite=True)
 		print('wrote to '+filename)
 
